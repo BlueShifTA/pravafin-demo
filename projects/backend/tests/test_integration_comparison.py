@@ -32,6 +32,19 @@ _GOOD_VERDICT = json.dumps(
                 "reasoning": "TSTA trades at P/E 10.0 versus 40.0 for TSTB.",
             }
         ],
+        "per_ticker": [
+            {
+                "ticker": "TSTA",
+                "pros": ["Cheap at P/E 10.0"],
+                "cons": ["Smaller revenue of 5000000"],
+            },
+            {
+                "ticker": "TSTB",
+                "pros": ["Larger revenue of 9000000"],
+                "cons": ["Expensive at P/E 40.0"],
+            },
+        ],
+        "recommendation": "TSTA is the better magic-formula candidate at these prices.",
         "summary": "TSTA is cheaper on earnings; TSTB grows faster.",
         "caveats": ["Snapshot data; no forward estimates."],
     }
@@ -46,6 +59,11 @@ _FABRICATED_VERDICT = json.dumps(
                 "reasoning": "TSTA revenue of 987654321000 dwarfs TSTB.",
             }
         ],
+        "per_ticker": [
+            {"ticker": "TSTA", "pros": ["Revenue of 987654321000"], "cons": []},
+            {"ticker": "TSTB", "pros": [], "cons": ["Dwarfed"]},
+        ],
+        "recommendation": "TSTA wins.",
         "summary": "TSTA wins.",
         "caveats": [],
     }
@@ -114,6 +132,11 @@ def test_comparison_returns_grounded_verdict(portfolio_id: int) -> None:
         result = response.json()
         assert result["per_criterion"][0]["winner"] == "TSTA"
         assert "cheaper" in result["summary"]
+        tickers_assessed = {entry["ticker"] for entry in result["per_ticker"]}
+        assert tickers_assessed == {"TSTA", "TSTB"}
+        assert result["per_ticker"][0]["pros"]
+        assert result["per_ticker"][0]["cons"]
+        assert result["recommendation"]
     finally:
         client.__exit__(None, None, None)
 
@@ -181,6 +204,8 @@ def test_real_llm_comparison_end_to_end(portfolio_id: int) -> None:
         result = response.json()
         assert result["model"] == "qwen3.5:4b"
         assert result["per_criterion"]
+        assert result["per_ticker"]
+        assert result["recommendation"]
         assert result["summary"]
     finally:
         client.__exit__(None, None, None)

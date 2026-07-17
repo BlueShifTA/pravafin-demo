@@ -5,9 +5,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CriterionVerdict } from "./criterionVerdict";
+import type { TickerAssessment } from "./tickerAssessment";
 
 export interface ComparisonResult {
   per_criterion: CriterionVerdict[];
+  per_ticker: TickerAssessment[];
+  recommendation: string;
   summary: string;
   caveats: string[];
   tickers: string[];

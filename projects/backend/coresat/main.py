@@ -110,7 +110,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         model=settings.ollama_model,
         temperature=0,
         reasoning=False,
-        num_predict=2000,
+        num_predict=3000,
     )
     app.state.comparison_service = ComparisonService(engine=app.state.app_engine, llm=llm)
     app.state.analysis_service = AnalysisService(

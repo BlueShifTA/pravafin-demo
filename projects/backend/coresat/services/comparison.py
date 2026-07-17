@@ -27,7 +27,10 @@ _PROMPT = ChatPromptTemplate.from_messages(
             "table provided. Quote numbers exactly as they appear in the table — never "
             "compute, extrapolate or invent figures, and write every figure in full "
             "digits (no abbreviations like 5M or 200k, no scientific notation). "
-            "Answer in the requested JSON format.\n{format_instructions}",
+            "For per_ticker give 2-3 one-sentence pros and 2-3 one-sentence cons per "
+            "company based only on metrics that have values; never mention metrics "
+            "marked n/a. End with a one-sentence recommendation naming the strongest "
+            "pick. Answer in the requested JSON format.\n{format_instructions}",
         ),
         ("human", "Facts table:\n{facts}\n\nCompare: {tickers}"),
     ]
@@ -35,9 +38,13 @@ _PROMPT = ChatPromptTemplate.from_messages(
 
 
 def _prose(verdicts: ComparisonVerdicts) -> str:
+    per_ticker = [
+        line for assessment in verdicts.per_ticker for line in assessment.pros + assessment.cons
+    ]
     return " ".join(
         [verdict.reasoning for verdict in verdicts.per_criterion]
-        + [verdicts.summary]
+        + per_ticker
+        + [verdicts.recommendation, verdicts.summary]
         + verdicts.caveats
     )
 

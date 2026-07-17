@@ -14,10 +14,20 @@ class CriterionVerdict(BaseModel):
     reasoning: str
 
 
+class TickerAssessment(BaseModel):
+    """Per-ticker pros and cons (pravafin comparison structure)."""
+
+    ticker: str
+    pros: list[str]
+    cons: list[str]
+
+
 class ComparisonVerdicts(BaseModel):
     """Shape the LLM must produce (enforced by the output parser)."""
 
     per_criterion: list[CriterionVerdict]
+    per_ticker: list[TickerAssessment]
+    recommendation: str
     summary: str
     caveats: list[str]
 
