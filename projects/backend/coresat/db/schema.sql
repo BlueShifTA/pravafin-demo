@@ -210,6 +210,16 @@ $$;
 REVOKE ALL ON FUNCTION create_portfolio(text, numeric, numeric, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION create_portfolio(text, numeric, numeric, text) TO coresat_app;
 
+-- Selector metadata for the portfolio switcher (single-user demo: names are not
+-- sensitive; row contents stay RLS-guarded).
+CREATE OR REPLACE FUNCTION list_portfolios()
+RETURNS TABLE (id integer, name text, created_at timestamptz)
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+    SELECT id, name, created_at FROM portfolios ORDER BY id;
+$$;
+REVOKE ALL ON FUNCTION list_portfolios() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION list_portfolios() TO coresat_app;
+
 -- ── grants ──────────────────────────────────────────────────────
 
 GRANT USAGE ON SCHEMA public TO coresat_app;

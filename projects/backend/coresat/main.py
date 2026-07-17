@@ -14,9 +14,13 @@ from starlette.responses import Response
 from coresat.api.example import router as example_router
 from coresat.api.health import router as health_router
 from coresat.api.ingest import router as ingest_router
+from coresat.api.market import router as market_router
+from coresat.api.portfolios import router as portfolios_router
 from coresat.core.config import get_settings
 from coresat.db.session import create_engine, to_async_url
+from coresat.services.analytics import AnalyticsService
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
+from coresat.services.portfolios import PortfolioService
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +95,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.app_engine = create_engine(settings.database_url)
     admin_engine = create_engine(to_async_url(settings.admin_database_url))
     app.state.ingest_pipeline = IngestionPipeline(engine=admin_engine, registry=build_registry())
+    app.state.portfolio_service = PortfolioService(app.state.app_engine)
+    app.state.analytics_service = AnalyticsService(app.state.app_engine)
 
     log.info("%s started", settings.app_name)
     yield
@@ -141,6 +147,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(example_router, prefix=settings.api_prefix)
     app.include_router(ingest_router, prefix=settings.api_prefix)
+    app.include_router(portfolios_router, prefix=settings.api_prefix)
+    app.include_router(market_router, prefix=settings.api_prefix)
     return app
 
 
