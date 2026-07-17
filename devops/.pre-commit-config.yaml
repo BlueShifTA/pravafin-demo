@@ -1,0 +1,85 @@
+# The canonical quality gate. `just lint` runs it whole-repo; CI runs it via
+# `just run-ci`. Tool versions come from pyproject.toml / package.json — local
+# hooks only, so there is a single pin source.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: no-dotenv-commit
+        name: block .env file commits
+        language: fail
+        entry: "Refusing to commit a .env file containing real secrets. Use .env.example for placeholders."
+        files: ^\.env(\.local|\.production|\..*\.local)?$
+        exclude: ^\.env\.(example|test)$
+
+      - id: ruff-check
+        name: ruff check
+        entry: bash -c 'uv run ruff check --fix projects devops docs'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-format
+        name: ruff format
+        entry: bash -c 'uv run ruff format projects devops docs'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: backend-mypy
+        name: backend-mypy
+        entry: bash -c 'PYTHONPATH=projects/backend uv run mypy projects/backend/coresat'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: backend-pyright
+        name: backend-pyright
+        entry: bash -c 'uv run pyright projects/backend/coresat'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: frontend-prettier
+        name: frontend-prettify
+        entry: bash -c 'cd projects/frontend && pnpm run prettify'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: frontend-eslint
+        name: frontend-eslint
+        entry: bash -c 'cd projects/frontend && pnpm run lint'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: frontend-typecheck
+        name: frontend-typecheck
+        entry: bash -c 'cd projects/frontend && pnpm run typecheck'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: no-sys-path-mutation
+        name: no-sys-path-mutation
+        entry: bash -c 'uv run python devops/check_no_sys_path_mutation.py'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: no-future-annotations
+        name: no-future-annotations
+        entry: bash -c 'uv run python devops/check_no_future_annotations.py'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: no-type-checking-blocks
+        name: no-type-checking-blocks
+        entry: bash -c 'uv run python devops/check_no_type_checking.py'
+        language: system
+        pass_filenames: false
+        always_run: true

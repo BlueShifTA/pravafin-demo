@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Keep frontend source lib generated API files trackable
+!projects/frontend/src/lib/
+!projects/frontend/src/lib/generated/
+!projects/frontend/src/lib/generated/**
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# Documentation
+docs/_build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+.env.*.local
+!.env.example
+!.env.test
+
+# Package manager lockfiles (pnpm uses pnpm-lock.yaml)
+package-lock.json
+yarn.lock
+.pnpm-store

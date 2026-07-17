@@ -1,0 +1,27 @@
+:root {
+  --color-brand-primary: #1d6ef2;
+  --color-brand-primary-strong: #0f4fc2;
+  --color-brand-secondary: #0d9a6f;
+  --color-brand-accent: #f59e0b;
+
+  --color-status-success: #1f9d61;
+  --color-status-warning: #b76e00;
+  --color-status-error: #b42318;
+  --color-status-info: #155eef;
+
+  --color-surface-canvas: #f4f7fb;
+  --color-surface-card: #ffffff;
+  --color-surface-muted: #eef3f9;
+
+  --color-border-subtle: #d7e2ee;
+  --color-border-strong: #9fb1c7;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475467;
+  --color-text-muted: #667085;
+
+  --font-family-sans:
+    "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}

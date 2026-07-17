@@ -1,0 +1,49 @@
+@import "../styles/variables.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at top right, rgba(36, 140, 255, 0.12), transparent 40%),
+    radial-gradient(circle at left 20%, rgba(39, 181, 137, 0.1), transparent 45%),
+    var(--color-surface-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+}
+
+* {
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.template-link-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-brand-primary) 8%, white);
+  color: var(--color-brand-primary-strong);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.template-link-pill:hover {
+  background: color-mix(in srgb, var(--color-brand-primary) 14%, white);
+}
+
+.template-code-pill {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8125rem;
+}
