@@ -23,6 +23,7 @@ class SourceAdapter(Protocol):
     """Parses a raw payload into validated records plus rejects."""
 
     name: str
+    version: str
 
     def parse(self, payload: bytes, source_ref: str | None, /) -> ParseResult: ...
 
@@ -43,11 +44,17 @@ def _clean(row: dict[str, str | None]) -> dict[str, str | None]:
 def _number(value: str | None) -> str | None:
     if value is None:
         return None
-    return value.replace(",", "").replace('"', "") or None
+    cleaned = value.replace(",", "").replace('"', "")
+    # yfinance exports write literal nan/inf — treat as missing, they would
+    # otherwise become NaN::numeric and break JSON serialization downstream
+    if cleaned.lower().lstrip("+-") in ("", "nan", "inf", "infinity"):
+        return None
+    return cleaned
 
 
 class UniverseCsvAdapter:
     name = "universe_csv"
+    version = "1"
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []
@@ -73,6 +80,7 @@ class DailyPricesCsvAdapter:
     """yfinance `to_csv` layout: 3 header lines (Price…, Ticker…, Date…), then rows."""
 
     name = "daily_prices_csv"
+    version = "1"
 
     def parse(self, payload: bytes, source_ref: str | None, /) -> ParseResult:
         lines = payload.decode("utf-8-sig").splitlines()
@@ -121,6 +129,7 @@ class ISharesHoldingsCsvAdapter:
     """iShares export: BOM + quoted preamble lines, real header starts at 'Ticker,'."""
 
     name = "ishares_holdings_csv"
+    version = "1"
 
     def parse(self, payload: bytes, source_ref: str | None, /) -> ParseResult:
         if not source_ref:
@@ -174,6 +183,7 @@ _FUNDAMENTALS_FIELDS = (
 
 class FundamentalsCsvAdapter:
     name = "fundamentals_csv"
+    version = "2"
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []
@@ -196,6 +206,7 @@ class FundamentalsCsvAdapter:
 
 class FundsCsvAdapter:
     name = "funds_csv"
+    version = "2"
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []

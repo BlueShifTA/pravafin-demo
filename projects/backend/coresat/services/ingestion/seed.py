@@ -6,6 +6,8 @@ re-running only ingests what changed.
 
 import argparse
 import asyncio
+import csv
+import io
 import logging
 import pathlib
 
@@ -18,6 +20,40 @@ log = logging.getLogger(__name__)
 
 _HOLDINGS_FUNDS = {"iwda_holdings.csv": "IWDA.AS", "cspx_holdings.csv": "CSPX.L"}
 
+_MAGIC_INPUT_COLUMNS = ("ebit", "nwc", "ppe_net", "cash", "shares")
+
+
+def merge_fundamentals(stocks_csv: bytes, financials_csv: bytes) -> bytes:
+    """Join valuation snapshot with latest-FY magic-formula inputs (per ticker).
+
+    fundamentals_stocks.csv has valuation ratios but no balance-sheet items;
+    financials_10y.csv (SEC XBRL) has them per fiscal year. total_debt = lt + st.
+    """
+    latest: dict[str, dict[str, str]] = {}
+    for row in csv.DictReader(io.StringIO(financials_csv.decode("utf-8-sig"))):
+        ticker = row["ticker"]
+        if ticker not in latest or float(row["fy"]) > float(latest[ticker]["fy"]):
+            latest[ticker] = row
+
+    reader = csv.DictReader(io.StringIO(stocks_csv.decode("utf-8-sig")))
+    base_fields = list(reader.fieldnames or [])
+    extra_fields = [
+        column for column in (*_MAGIC_INPUT_COLUMNS, "total_debt") if column not in base_fields
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=base_fields + extra_fields)
+    writer.writeheader()
+    for row in reader:
+        financials = latest.get(row["ticker"], {})
+        for column in _MAGIC_INPUT_COLUMNS:
+            row.setdefault(column, financials.get(column, ""))
+        lt_debt = financials.get("lt_debt") or "0"
+        st_debt = financials.get("st_debt") or "0"
+        total = float(lt_debt) + float(st_debt)
+        row.setdefault("total_debt", str(int(total)) if total else "")
+        writer.writerow(row)
+    return output.getvalue().encode()
+
 
 async def seed(data_dir: pathlib.Path) -> None:
     settings = get_settings()
@@ -25,14 +61,23 @@ async def seed(data_dir: pathlib.Path) -> None:
     engine = create_engine(to_async_url(settings.admin_database_url))
     pipeline = IngestionPipeline(engine=engine, registry=build_registry())
     try:
-        for name, adapter in (
-            ("universe_v2.csv", "universe_csv"),
-            ("fundamentals_stocks.csv", "fundamentals_csv"),
-            ("fundamentals_etfs.csv", "funds_csv"),
+        stocks_path = data_dir / "fundamentals_stocks.csv"
+        financials_path = data_dir / "financials_10y.csv"
+        fundamentals_payload = b""
+        if stocks_path.exists():
+            fundamentals_payload = (
+                merge_fundamentals(stocks_path.read_bytes(), financials_path.read_bytes())
+                if financials_path.exists()
+                else stocks_path.read_bytes()
+            )
+        for name, adapter, payload in (
+            ("universe_v2.csv", "universe_csv", None),
+            ("fundamentals_stocks.csv", "fundamentals_csv", fundamentals_payload or None),
+            ("fundamentals_etfs.csv", "funds_csv", None),
         ):
             path = data_dir / name
             if path.exists():
-                report = await pipeline.run(adapter, path.read_bytes(), None)
+                report = await pipeline.run(adapter, payload or path.read_bytes(), None)
                 log.info(
                     "%s: %s ok=%d q=%d",
                     name,

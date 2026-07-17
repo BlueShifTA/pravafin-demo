@@ -97,6 +97,18 @@ def test_fundamentals_adapter_rejects_non_numeric() -> None:
     assert len(rejects) == 1
 
 
+def test_fundamentals_adapter_nullifies_nan_and_inf() -> None:
+    payload = b"ticker,name,market_cap,ebit\nNANX,NaN Corp,nan,5000\nINFX,Inf Corp,inf,-inf\n"
+    valid, rejects = FundamentalsCsvAdapter().parse(payload, None)
+    assert rejects == []
+    nanx = next(record for record in valid if record.ticker == "NANX")
+    assert nanx.market_cap is None
+    assert nanx.ebit == 5000
+    infx = next(record for record in valid if record.ticker == "INFX")
+    assert infx.market_cap is None
+    assert infx.ebit is None
+
+
 def test_funds_adapter_requires_ticker() -> None:
     valid, rejects = FundsCsvAdapter().parse(FUNDS_CSV, None)
     assert [f.ticker for f in valid] == ["IWDA.AS", "VOO"]

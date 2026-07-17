@@ -53,7 +53,10 @@ class IngestionPipeline:
     ) -> IngestReport:
         """Ingest one payload. Same payload twice → 'skipped' (checksum idempotency)."""
         entry = self._registry[adapter_name]
-        checksum = hashlib.sha256(adapter_name.encode() + b"\0" + payload).hexdigest()
+        version = entry.adapter.version
+        checksum = hashlib.sha256(
+            f"{adapter_name}:{version}".encode() + b"\0" + payload
+        ).hexdigest()
 
         async with self.engine.begin() as conn:
             done = (
@@ -77,10 +80,10 @@ class IngestionPipeline:
             run_id = (
                 await conn.execute(
                     text(
-                        "INSERT INTO ingest_runs (source, checksum) "
-                        "VALUES (:source, :checksum) RETURNING id"
+                        "INSERT INTO ingest_runs (source, adapter_version, checksum) "
+                        "VALUES (:source, :version, :checksum) RETURNING id"
                     ),
-                    {"source": adapter_name, "checksum": checksum},
+                    {"source": adapter_name, "version": version, "checksum": checksum},
                 )
             ).scalar_one()
 

@@ -5,10 +5,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ExampleEchoRequest {
+export interface CompareRequest {
   /**
-   * @minLength 1
-   * @maxLength 500
+   * @minItems 2
+   * @maxItems 4
    */
-  message: string;
+  tickers: string[];
+  portfolio_id: number;
 }

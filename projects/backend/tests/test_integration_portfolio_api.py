@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from coresat.db.schema import apply_schema
 from coresat.main import app
 
-ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat"
+ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 
 
 async def _connect_or_skip() -> asyncpg.Connection:

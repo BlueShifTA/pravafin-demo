@@ -5,4 +5,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type HealthHealthGet200 = { [key: string]: string };
+export interface PortfolioListItem {
+  id: number;
+  name: string;
+  created_at: string;
+}

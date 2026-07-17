@@ -5,10 +5,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ExampleEchoRequest {
-  /**
-   * @minLength 1
-   * @maxLength 500
-   */
-  message: string;
+export interface SleeveDrift {
+  kind: string;
+  target_weight: number;
+  actual_weight: number;
+  drift: number;
 }

@@ -1,5 +1,15 @@
 """Shared pytest fixtures for backend tests."""
 
+# Tests run against a dedicated database (coresat_test) so they can TRUNCATE and
+# seed freely without wiping dev data. Must be set before coresat.main imports
+# get_settings() (module-level create_app()).
+import os
+
+os.environ["DATABASE_URL"] = (
+    "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"
+)
+os.environ["ADMIN_DATABASE_URL"] = "postgresql://postgres:postgres@localhost:5434/coresat_test"
+
 from collections.abc import AsyncGenerator
 
 import pytest

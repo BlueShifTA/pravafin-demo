@@ -5,4 +5,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type HealthHealthGet200 = { [key: string]: string };
+export interface CriterionVerdict {
+  criterion: string;
+  winner: string;
+  reasoning: string;
+}

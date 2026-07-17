@@ -14,8 +14,8 @@ from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
 
-ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat"
-ADMIN_SQLA_URL = "postgresql+asyncpg://postgres:postgres@localhost:5434/coresat"
+ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
+ADMIN_SQLA_URL = "postgresql+asyncpg://postgres:postgres@localhost:5434/coresat_test"
 
 UNIVERSE_CSV = b"""ticker,type,sector,industry
 TSTN,stock,semiconductor,Semiconductors

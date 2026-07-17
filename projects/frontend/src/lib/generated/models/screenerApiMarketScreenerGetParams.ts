@@ -5,10 +5,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ExampleEchoRequest {
+export type ScreenerApiMarketScreenerGetParams = {
   /**
-   * @minLength 1
-   * @maxLength 500
+   * @minimum 1
+   * @maximum 500
    */
-  message: string;
-}
+  limit?: number;
+};

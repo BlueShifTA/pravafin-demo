@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { AppNav } from "@/components/layout/AppNav";
 import { AppProviders } from "@/components/layout/AppProviders";
+import { PortfolioProvider } from "@/lib/portfolio-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          <PortfolioProvider>
+            <AppNav>{children}</AppNav>
+          </PortfolioProvider>
+        </AppProviders>
       </body>
     </html>
   );

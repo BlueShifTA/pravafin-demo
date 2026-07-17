@@ -16,8 +16,8 @@ from coresat.db.schema import apply_schema
 from coresat.main import app
 from coresat.services.comparison import ComparisonService
 
-ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat"
-APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat"
+ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
+APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"
 
 _GOOD_VERDICT = json.dumps(
     {

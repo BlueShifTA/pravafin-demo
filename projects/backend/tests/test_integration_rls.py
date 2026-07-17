@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine, portfolio_scope
 
-ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat"
-APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat"
+ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
+APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"
 
 Seeded = tuple[int, int, int, int]  # portfolio1, portfolio2, sleeve1, sleeve2
 
