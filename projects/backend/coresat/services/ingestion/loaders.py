@@ -113,6 +113,18 @@ _FUNDAMENTALS_UPDATES = ", ".join(
 async def load_fundamentals(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
     fundamentals = cast(Sequence[FundamentalsRecord], records)
     ids = await _ensure_instruments(conn, {record.ticker for record in fundamentals})
+    # backfill company names onto ticker-named stubs only — a universe_csv run
+    # remains the authority and is never overwritten here
+    named = [
+        {"instrument_id": ids[record.ticker], "name": record.name}
+        for record in fundamentals
+        if record.name and record.name != record.ticker
+    ]
+    if named:
+        await conn.execute(
+            text("UPDATE instruments SET name = :name WHERE id = :instrument_id AND name = ticker"),
+            named,
+        )
     await conn.execute(
         text(
             f"INSERT INTO fundamentals (instrument_id, {_FUNDAMENTALS_COLUMNS}) "

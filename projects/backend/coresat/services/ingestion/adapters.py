@@ -182,8 +182,9 @@ _FUNDAMENTALS_FIELDS = (
 
 
 class FundamentalsCsvAdapter:
+    # v3: loader backfills instrument names from the name column
     name = "fundamentals_csv"
-    version = "2"
+    version = "3"
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []

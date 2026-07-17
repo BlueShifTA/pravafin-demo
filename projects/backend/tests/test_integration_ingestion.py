@@ -22,6 +22,10 @@ TSTN,stock,semiconductor,Semiconductors
 ,stock,broken-row,
 """
 
+FUNDAMENTALS_CSV = b"""ticker,name,pe_trailing,revenue
+TSTN,Test Semi Corp,12.5,1000000
+"""
+
 
 async def _admin_or_skip() -> asyncpg.Connection:
     try:
@@ -88,3 +92,33 @@ async def test_all_rows_invalid_marks_run_failed(pipeline: IngestionPipeline) ->
 async def test_unknown_adapter_raises(pipeline: IngestionPipeline) -> None:
     with pytest.raises(KeyError):
         await pipeline.run("no_such_adapter", b"x")
+
+
+@pytest.mark.usefixtures("clean_db")
+async def test_fundamentals_backfill_stub_instrument_names(
+    pipeline: IngestionPipeline,
+) -> None:
+    # fundamentals arrive before any universe file: the instrument is created
+    # as a ticker-named stub and must pick up the real company name
+    report = await pipeline.run("fundamentals_csv", FUNDAMENTALS_CSV)
+    assert report.status == "succeeded"
+    async with pipeline.engine.connect() as conn:
+        name = (
+            await conn.execute(text("SELECT name FROM instruments WHERE ticker = 'TSTN'"))
+        ).scalar_one()
+    assert name == "Test Semi Corp"
+
+
+@pytest.mark.usefixtures("clean_db")
+async def test_fundamentals_do_not_clobber_universe_names(
+    pipeline: IngestionPipeline,
+) -> None:
+    await pipeline.run(
+        "universe_csv", b"ticker,type,name,sector,industry\nTSTN,stock,Authoritative Name,x,y\n"
+    )
+    await pipeline.run("fundamentals_csv", FUNDAMENTALS_CSV)
+    async with pipeline.engine.connect() as conn:
+        name = (
+            await conn.execute(text("SELECT name FROM instruments WHERE ticker = 'TSTN'"))
+        ).scalar_one()
+    assert name == "Authoritative Name"
