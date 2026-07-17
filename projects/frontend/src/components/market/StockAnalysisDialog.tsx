@@ -1,5 +1,7 @@
 "use client";
 
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {
   Alert,
   Box,
@@ -105,7 +107,9 @@ export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDial
               <List dense>
                 {result.strengths.map((item) => (
                   <ListItem key={item} disableGutters>
-                    <ListItemIcon sx={{ minWidth: 28, color: "success.main" }}>✓</ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <CheckCircleOutlinedIcon color="success" fontSize="small" />
+                    </ListItemIcon>
                     <ListItemText primary={item} />
                   </ListItem>
                 ))}
@@ -118,7 +122,9 @@ export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDial
               <List dense>
                 {result.weaknesses.map((item) => (
                   <ListItem key={item} disableGutters>
-                    <ListItemIcon sx={{ minWidth: 28, color: "warning.main" }}>⚠</ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <WarningAmberIcon color="warning" fontSize="small" />
+                    </ListItemIcon>
                     <ListItemText primary={item} />
                   </ListItem>
                 ))}

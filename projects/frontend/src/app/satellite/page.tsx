@@ -15,6 +15,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import PsychologyIcon from "@mui/icons-material/Psychology";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef, GridRowSelectionModel } from "@mui/x-data-grid";
 import { useState } from "react";
@@ -23,6 +24,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { CandleChart } from "@/components/market/CandleChart";
 import { CompareDialog } from "@/components/market/CompareDialog";
 import { StockAnalysisDialog } from "@/components/market/StockAnalysisDialog";
+import { formatNumber, formatPercent } from "@/lib/format";
 import {
   useCandlesApiMarketCandlesTickerGet,
   useScreenerApiMarketScreenerGet,
@@ -80,16 +82,21 @@ export default function SatellitePage() {
       headerName: "Earnings yield",
       description: "EBIT / enterprise value — how much operating profit per euro paid",
       width: 130,
-      valueFormatter: (value: number) => `${(value * 100).toFixed(1)}%`,
+      valueFormatter: (value: number) => formatPercent(value),
     },
     {
       field: "roic",
       headerName: "ROIC",
       description: "EBIT / (net working capital + PPE) — how well capital compounds",
       width: 110,
-      valueFormatter: (value: number) => `${(value * 100).toFixed(0)}%`,
+      valueFormatter: (value: number) => formatPercent(value, 0),
     },
-    { field: "pe_trailing", headerName: "P/E", width: 90 },
+    {
+      field: "pe_trailing",
+      headerName: "P/E",
+      width: 90,
+      valueFormatter: (value: number | null) => formatNumber(value),
+    },
     {
       field: "analyze",
       headerName: "AI",
@@ -99,7 +106,7 @@ export default function SatellitePage() {
       renderCell: (params) => (
         <Tooltip title={`AI analysis of ${params.row.ticker}`}>
           <IconButton size="small" onClick={() => setAnalysisTicker(String(params.row.ticker))}>
-            🧠
+            <PsychologyIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       ),
@@ -208,7 +215,12 @@ export default function SatellitePage() {
             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
               <Chip label="Rank ≤ 10 — strong candidate" size="small" color="success" />
               <Chip label="Rank ≤ 20 — worth a look" size="small" color="primary" />
-              <Chip label="🧠 — grounded AI analysis" size="small" variant="outlined" />
+              <Chip
+                icon={<PsychologyIcon />}
+                label="grounded AI analysis"
+                size="small"
+                variant="outlined"
+              />
             </Stack>
           </CardContent>
         </Card>

@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { formatMoney, formatPercent } from "@/lib/format";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
 import {
   useCreatePortfolioApiPortfoliosPost,
@@ -103,8 +104,8 @@ export default function WizardPage() {
             />
             <Box>
               <Typography gutterBottom>
-                Core weight: {(coreWeight * 100).toFixed(0)}% (satellites{" "}
-                {((1 - coreWeight) * 100).toFixed(0)}%)
+                Core weight: {formatPercent(coreWeight, 0)} (satellites{" "}
+                {formatPercent(1 - coreWeight, 0)})
               </Typography>
               <Slider
                 value={coreWeight}
@@ -143,8 +144,7 @@ export default function WizardPage() {
                   {fund.name}
                 </Typography>
                 <Typography variant="body2">
-                  TER {fund.ter ?? "n/a"}% · 10y CAGR{" "}
-                  {fund.cagr_10y != null ? `${(fund.cagr_10y * 100).toFixed(1)}%` : "n/a"}
+                  TER {fund.ter ?? "n/a"}% · 10y CAGR {formatPercent(fund.cagr_10y)}
                 </Typography>
               </CardContent>
             </Card>
@@ -190,14 +190,14 @@ export default function WizardPage() {
               Review
             </Typography>
             <Typography>
-              {name}: ${capital.toLocaleString()} + ${monthly}/month
+              {name}: {formatMoney(capital)} + {formatMoney(monthly)}/month
             </Typography>
             <Typography>
-              Core {(coreWeight * 100).toFixed(0)}% → {coreFund}
+              Core {formatPercent(coreWeight, 0)} → {coreFund}
             </Typography>
             <Typography>
-              Satellites {((1 - coreWeight) * 100).toFixed(0)}% → {satellites.join(", ")} (
-              {(satelliteWeight * 100).toFixed(1)}% each)
+              Satellites {formatPercent(1 - coreWeight, 0)} → {satellites.join(", ")} (
+              {formatPercent(satelliteWeight)} each)
             </Typography>
             {create.isError && (
               <Alert severity="error" sx={{ mt: 2 }}>

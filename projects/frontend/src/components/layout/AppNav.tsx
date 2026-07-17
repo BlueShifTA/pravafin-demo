@@ -17,6 +17,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import MenuIcon from "@mui/icons-material/Menu";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -69,7 +71,7 @@ export function AppNav({ children }: PropsWithChildren) {
             onClick={() => setMobileNavOpen(true)}
             sx={{ color: "inherit", display: { xs: "inline-flex", md: "none" } }}
           >
-            ☰
+            <MenuIcon />
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
             CoreSat
@@ -96,7 +98,7 @@ export function AppNav({ children }: PropsWithChildren) {
                 onClick={() => setCopilotOpen(true)}
                 sx={{ color: "inherit" }}
               >
-                🤖
+                <SmartToyIcon />
               </IconButton>
             </span>
           </Tooltip>

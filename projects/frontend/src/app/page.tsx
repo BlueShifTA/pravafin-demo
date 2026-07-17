@@ -4,6 +4,7 @@ import { Card, CardContent, Grid, Stack, Typography } from "@mui/material";
 import { LineChart, PieChart } from "@mui/x-charts";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { formatPercent } from "@/lib/format";
 import { usePortfolioSummaryApiPortfoliosPortfolioIdSummaryGet } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
@@ -84,9 +85,8 @@ export default function DashboardPage() {
               <Stack spacing={0.5}>
                 {summary.drift.map((sleeve) => (
                   <Typography key={sleeve.kind} variant="body2" color="text.secondary">
-                    {sleeve.kind}: {(sleeve.actual_weight * 100).toFixed(1)}% vs target{" "}
-                    {(sleeve.target_weight * 100).toFixed(0)}% (drift{" "}
-                    {(sleeve.drift * 100).toFixed(1)}%)
+                    {sleeve.kind}: {formatPercent(sleeve.actual_weight)} vs target{" "}
+                    {formatPercent(sleeve.target_weight, 0)} (drift {formatPercent(sleeve.drift)})
                   </Typography>
                 ))}
               </Stack>

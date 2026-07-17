@@ -107,6 +107,8 @@ Architecture: thin `api/` handlers → `services/` business logic → `domain/` 
 - Static navigation → `next/link`, not `router.push`.
 - Downloads: `<a href=…>`, not custom JS/blob fetches.
 - Prefer shared UI wrappers (`components/ui/` — e.g. `AppButton`, `AppTextField`) over repeating raw MUI config inline.
+- Never use emojis in UI or generated text — use `@mui/icons-material` icons (version must match the `@mui/material` major).
+- Numbers through `src/lib/format.ts` (`formatNumber`, `formatMoney`, `formatPercent`) — compact ≥1M (`$7M`, `141.6B`), max 2 decimals, `n/a` for null.
 - Only titles may be bold (700); outside of titles use semibold (600).
 - Render with real providers (theme + React Query) — single composition point: `AppProviders`.
 

@@ -15,12 +15,11 @@ import { BarChart } from "@mui/x-charts";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { formatMoney, formatPercent } from "@/lib/format";
 import {
   useFundsApiMarketFundsGet,
   useTerDragApiMarketTerDragGet,
 } from "@/lib/generated/endpoints";
-
-const currency = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 export default function CorePage() {
   const fundsQuery = useFundsApiMarketFundsGet();
@@ -63,11 +62,9 @@ export default function CorePage() {
                       <TableCell sx={{ fontWeight: 600 }}>{fund.ticker}</TableCell>
                       <TableCell>{fund.name}</TableCell>
                       <TableCell align="right">{fund.ter ?? "n/a"}</TableCell>
+                      <TableCell align="right">{formatPercent(fund.cagr_10y)}</TableCell>
                       <TableCell align="right">
-                        {fund.cagr_10y != null ? `${(fund.cagr_10y * 100).toFixed(1)}%` : "n/a"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {fund.fund_size != null ? `$${currency.format(fund.fund_size)}` : "n/a"}
+                        {formatMoney(fund.fund_size, fund.currency ?? "USD")}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -89,8 +86,8 @@ export default function CorePage() {
                   series={[{ data: [drag.gross_value, drag.net_value] }]}
                 />
                 <Typography color="text.secondary">
-                  {drag.ter}% TER costs ${currency.format(drag.drag)} on $
-                  {currency.format(drag.capital)} at {(drag.cagr_10y * 100).toFixed(1)}% CAGR.
+                  {drag.ter}% TER costs {formatMoney(drag.drag)} on {formatMoney(drag.capital)} at{" "}
+                  {formatPercent(drag.cagr_10y)} CAGR.
                 </Typography>
               </CardContent>
             </Card>

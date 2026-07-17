@@ -1,5 +1,10 @@
 "use client";
 
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import PsychologyIcon from "@mui/icons-material/Psychology";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {
   Alert,
   Box,
@@ -58,7 +63,7 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 700 }}>
-        <span aria-hidden>🆚</span> AI Stock Comparison
+        <CompareArrowsIcon color="primary" /> AI Stock Comparison
       </DialogTitle>
       <DialogContent>
         <Box sx={{ mb: 3 }}>
@@ -97,7 +102,7 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
               gutterBottom
               sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 600 }}
             >
-              <span aria-hidden>🧠</span> AI Analysis
+              <PsychologyIcon color="primary" /> AI Analysis
             </Typography>
 
             <SectionHeading>Comparison Summary</SectionHeading>
@@ -123,7 +128,9 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
                   <List dense>
                     {assessment.pros.map((item) => (
                       <ListItem key={item} disableGutters>
-                        <ListItemIcon sx={{ minWidth: 24, color: "success.main" }}>✓</ListItemIcon>
+                        <ListItemIcon sx={{ minWidth: 32 }}>
+                          <CheckCircleOutlinedIcon color="success" fontSize="small" />
+                        </ListItemIcon>
                         <ListItemText primary={item} />
                       </ListItem>
                     ))}
@@ -134,7 +141,9 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
                   <List dense>
                     {assessment.cons.map((item) => (
                       <ListItem key={item} disableGutters>
-                        <ListItemIcon sx={{ minWidth: 24, color: "warning.main" }}>⚠</ListItemIcon>
+                        <ListItemIcon sx={{ minWidth: 32 }}>
+                          <WarningAmberIcon color="warning" fontSize="small" />
+                        </ListItemIcon>
                         <ListItemText primary={item} />
                       </ListItem>
                     ))}
@@ -144,7 +153,7 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
             </Box>
 
             <SectionHeading>Top Pick</SectionHeading>
-            <Alert severity="success" icon="🏆">
+            <Alert severity="success" icon={<EmojiEventsIcon />}>
               {result.recommendation}
             </Alert>
 
