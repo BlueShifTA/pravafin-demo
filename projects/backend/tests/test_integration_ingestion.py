@@ -18,7 +18,7 @@ ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat"
 ADMIN_SQLA_URL = "postgresql+asyncpg://postgres:postgres@localhost:5434/coresat"
 
 UNIVERSE_CSV = b"""ticker,type,sector,industry
-NVDA,stock,semiconductor,Semiconductors
+TSTN,stock,semiconductor,Semiconductors
 ,stock,broken-row,
 """
 
@@ -35,7 +35,7 @@ async def clean_db() -> AsyncIterator[None]:
     admin = await _admin_or_skip()
     await apply_schema(ADMIN_DSN)
     await admin.execute("TRUNCATE ingest_quarantine, ingest_runs RESTART IDENTITY CASCADE")
-    await admin.execute("DELETE FROM instruments WHERE ticker IN ('NVDA')")
+    await admin.execute("DELETE FROM instruments WHERE ticker IN ('TSTN')")
     yield
     await admin.close()
 
@@ -72,7 +72,7 @@ async def test_reingest_same_payload_skips_and_creates_no_duplicates(
     assert second.status == "skipped"
     async with pipeline.engine.connect() as conn:
         count = (
-            await conn.execute(text("SELECT count(*) FROM instruments WHERE ticker = 'NVDA'"))
+            await conn.execute(text("SELECT count(*) FROM instruments WHERE ticker = 'TSTN'"))
         ).scalar_one()
     assert count == 1
 

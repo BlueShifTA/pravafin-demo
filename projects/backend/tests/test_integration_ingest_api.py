@@ -16,7 +16,7 @@ from coresat.main import app
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat"
 
 UNIVERSE_CSV = b"""ticker,type,sector,industry
-NVDA,stock,semiconductor,Semiconductors
+TSTN,stock,semiconductor,Semiconductors
 ,stock,broken-row,
 """
 
