@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    # Database — compose defaults (local dev); app role is RLS-enforced,
+    # admin role is for schema apply and seeding only.
+    database_url: str = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat"
+    admin_database_url: str = "postgresql://postgres:postgres@localhost:5434/coresat"
+
+    # LLM — local Ollama only
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "gemma3:12b-it-qat"
+
     # Security: explicit CORS origins only — no wildcards.  Wildcards are
     # rejected at startup by create_app().  Add your frontend origin here or
     # override via CORS_ORIGINS env var (comma-separated or JSON list).

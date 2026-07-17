@@ -17,6 +17,20 @@ clean:
   rm -rf .venv .mypy_cache .ruff_cache .pytest_cache .coverage htmlcov .pnpm-store
   rm -rf projects/frontend/node_modules projects/frontend/.next projects/frontend/coverage projects/frontend/tsconfig.tsbuildinfo
 
+[doc("Start infra containers (Postgres)")]
+[group('run')]
+stack-up:
+  docker compose up -d --wait
+
+[group('run')]
+stack-down:
+  docker compose down
+
+[doc("Apply database schema (idempotent)")]
+[group('run')]
+db-apply:
+  PYTHONPATH=projects/backend uv run python -m coresat.db.apply
+
 [group('run')]
 run-backend:
   PYTHONPATH=projects/backend uv run uvicorn coresat.main:app --reload --host 127.0.0.1 --port 8000

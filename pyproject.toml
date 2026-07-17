@@ -92,6 +92,7 @@ reportMissingImports = true
 reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["projects/backend/tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
