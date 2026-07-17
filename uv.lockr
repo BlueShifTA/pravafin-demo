@@ -5,7 +5,7 @@ requires-python = ">=3.14"
 [manifest]
 members = [
     "coresat",
-    "etops-demo",
+    "project-instruction",
 ]
 
 [[package]]
@@ -192,7 +192,6 @@ dependencies = [
     { name = "greenlet" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "python-multipart" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -223,7 +222,6 @@ requires-dist = [
     { name = "greenlet", specifier = ">=3.5.3" },
     { name = "pydantic", specifier = "~=2.10" },
     { name = "pydantic-settings", specifier = "~=2.6" },
-    { name = "python-multipart", specifier = ">=0.0.32" },
     { name = "sqlalchemy", specifier = ">=2.0.51" },
     { name = "uvicorn", extras = ["standard"], specifier = "~=0.34" },
 ]
@@ -302,51 +300,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/57/b1/b880503681ea1b64df05106fc7e3c4e3801736cf63deffc6fa7fc5404cf5/docutils-0.18.1.tar.gz", hash = "sha256:679987caf361a7539d76e584cbeddc311e3aee937877c87346f31debc63e9d06", size = 2043249, upload-time = "2021-11-23T17:49:42.043Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8d/14/69b4bad34e3f250afe29a854da03acb6747711f3df06c359fa053fae4e76/docutils-0.18.1-py2.py3-none-any.whl", hash = "sha256:23010f129180089fbcd3bc08cfefccb3b890b0050e1ca00c867036e9d161b98c", size = 570050, upload-time = "2021-11-23T17:49:38.556Z" },
-]
-
-[[package]]
-name = "etops-demo"
-version = "0.1.0"
-source = { virtual = "." }
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pyright", extra = ["nodejs"] },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-docs = [
-    { name = "sphinx" },
-    { name = "sphinx-autodoc-typehints" },
-    { name = "sphinx-rtd-theme" },
-]
-test = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = "==1.19.1" },
-    { name = "pre-commit", specifier = "~=3.5" },
-    { name = "pyright", extras = ["nodejs"], specifier = "~=1.1" },
-    { name = "pytest", specifier = "~=8.0" },
-    { name = "pytest-cov", specifier = "~=5.0" },
-    { name = "ruff", specifier = "==0.15.7" },
-]
-docs = [
-    { name = "sphinx", specifier = "~=7.0" },
-    { name = "sphinx-autodoc-typehints", specifier = "~=1.24" },
-    { name = "sphinx-rtd-theme", specifier = "~=1.3" },
-]
-test = [
-    { name = "pytest", specifier = "~=8.0" },
-    { name = "pytest-cov", specifier = "~=5.0" },
 ]
 
 [[package]]
@@ -693,6 +646,51 @@ wheels = [
 ]
 
 [[package]]
+name = "project-instruction"
+version = "0.1.0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pyright", extra = ["nodejs"] },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+docs = [
+    { name = "sphinx" },
+    { name = "sphinx-autodoc-typehints" },
+    { name = "sphinx-rtd-theme" },
+]
+test = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = "==1.19.1" },
+    { name = "pre-commit", specifier = "~=3.5" },
+    { name = "pyright", extras = ["nodejs"], specifier = "~=1.1" },
+    { name = "pytest", specifier = "~=8.0" },
+    { name = "pytest-cov", specifier = "~=5.0" },
+    { name = "ruff", specifier = "==0.15.7" },
+]
+docs = [
+    { name = "sphinx", specifier = "~=7.0" },
+    { name = "sphinx-autodoc-typehints", specifier = "~=1.24" },
+    { name = "sphinx-rtd-theme", specifier = "~=1.3" },
+]
+test = [
+    { name = "pytest", specifier = "~=8.0" },
+    { name = "pytest-cov", specifier = "~=5.0" },
+]
+
+[[package]]
 name = "pydantic"
 version = "2.12.5"
 source = { registry = "https://pypi.org/simple" }
@@ -848,15 +846,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/82/ed/0301aeeac3e5353ef3d94b6ec08bbcabd04a72018415dcb29e588514bba8/python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3", size = 50135, upload-time = "2026-03-01T16:00:26.196Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a", size = 22101, upload-time = "2026-03-01T16:00:25.09Z" },
-]
-
-[[package]]
-name = "python-multipart"
-version = "0.0.32"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c092ad250a0e82edb5b31ddeda6eb772de5f308b3804ad/python_multipart-0.0.32.tar.gz", hash = "sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e", size = 46881, upload-time = "2026-06-04T16:18:58.647Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23", size = 30042, upload-time = "2026-06-04T16:18:57.319Z" },
 ]
 
 [[package]]

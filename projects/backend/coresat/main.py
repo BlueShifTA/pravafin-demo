@@ -13,7 +13,10 @@ from starlette.responses import Response
 
 from coresat.api.example import router as example_router
 from coresat.api.health import router as health_router
+from coresat.api.ingest import router as ingest_router
 from coresat.core.config import get_settings
+from coresat.db.session import create_engine, to_async_url
+from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
 
 log = logging.getLogger(__name__)
 
@@ -83,9 +86,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     loop.set_default_executor(executor)
     app.state.executor = executor
 
+    # Two engines by privilege: the app engine is RLS-enforced for portfolio
+    # requests; the admin engine writes fact tables (ingestion only).
+    app.state.app_engine = create_engine(settings.database_url)
+    admin_engine = create_engine(to_async_url(settings.admin_database_url))
+    app.state.ingest_pipeline = IngestionPipeline(engine=admin_engine, registry=build_registry())
+
     log.info("%s started", settings.app_name)
     yield
     log.info("%s shutting down", settings.app_name)
+    await app.state.app_engine.dispose()
+    await admin_engine.dispose()
     executor.shutdown(wait=False)
 
 
@@ -129,6 +140,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestIDMiddleware)
     app.include_router(health_router)
     app.include_router(example_router, prefix=settings.api_prefix)
+    app.include_router(ingest_router, prefix=settings.api_prefix)
     return app
 
 

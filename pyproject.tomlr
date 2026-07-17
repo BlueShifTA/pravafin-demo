@@ -1,5 +1,5 @@
 [project]
-name = "etops-demo"
+name = "project-instruction"
 version = "0.1.0"
 description = "Project scaffold and instructional documentation for starting new projects"
 readme = "README.md"

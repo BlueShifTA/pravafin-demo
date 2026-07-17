@@ -31,6 +31,11 @@ stack-down:
 db-apply:
   PYTHONPATH=projects/backend uv run python -m coresat.db.apply
 
+[doc("Seed the database from the public-data directory (idempotent)")]
+[group('run')]
+ingest-all data_dir="../etops-demo-data":
+  PYTHONPATH=projects/backend uv run python -m coresat.services.ingestion.seed {{data_dir}}
+
 [group('run')]
 run-backend:
   PYTHONPATH=projects/backend uv run uvicorn coresat.main:app --reload --host 127.0.0.1 --port 8000

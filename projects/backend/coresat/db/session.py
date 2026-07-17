@@ -11,6 +11,11 @@ def create_engine(url: str) -> AsyncEngine:
     return create_async_engine(url, pool_pre_ping=True)
 
 
+def to_async_url(dsn: str) -> str:
+    """asyncpg DSN (postgresql://…) → SQLAlchemy async URL (postgresql+asyncpg://…)."""
+    return dsn.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+
 @asynccontextmanager
 async def portfolio_scope(engine: AsyncEngine, portfolio_id: int) -> AsyncIterator[AsyncConnection]:
     """Connection whose transaction carries the RLS context.
