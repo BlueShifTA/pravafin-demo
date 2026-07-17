@@ -12,6 +12,7 @@ import {
   Stepper,
   Typography,
 } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -19,6 +20,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
 import {
+  getListPortfoliosApiPortfoliosGetQueryKey,
   useCreatePortfolioApiPortfoliosPost,
   useFundsApiMarketFundsGet,
   useScreenerApiMarketScreenerGet,
@@ -29,6 +31,7 @@ const STEPS = ["Capital", "Core ETF", "Satellites", "Review"] as const;
 
 export default function WizardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { setPortfolioId } = usePortfolio();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("My portfolio");
@@ -64,6 +67,11 @@ export default function WizardPage() {
       {
         onSuccess: (created) => {
           if (created.status !== 201) return;
+          // the header selector's list query is already mounted — without
+          // invalidation it keeps serving the stale list without the new row
+          void queryClient.invalidateQueries({
+            queryKey: getListPortfoliosApiPortfoliosGetQueryKey(),
+          });
           setPortfolioId(created.data.id);
           router.push("/");
         },
