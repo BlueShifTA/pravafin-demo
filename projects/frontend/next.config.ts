@@ -4,6 +4,9 @@ const nextConfig = {
     reactCompiler: {
       target: "18",
     },
+    // /api/compare holds the connection for one local-LLM generation
+    // (~20s, ~40s on fabrication retry); default 30s proxy timeout resets it.
+    proxyTimeout: 120_000,
   },
   async rewrites() {
     return [

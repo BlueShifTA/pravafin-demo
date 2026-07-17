@@ -12,6 +12,7 @@ from langchain_ollama import ChatOllama
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from coresat.api.analysis import router as analysis_router
 from coresat.api.compare import router as compare_router
 from coresat.api.example import router as example_router
 from coresat.api.health import router as health_router
@@ -20,6 +21,7 @@ from coresat.api.market import router as market_router
 from coresat.api.portfolios import router as portfolios_router
 from coresat.core.config import get_settings
 from coresat.db.session import create_engine, to_async_url
+from coresat.services.analysis import AnalysisService
 from coresat.services.analytics import AnalyticsService
 from coresat.services.comparison import ComparisonService
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
@@ -100,11 +102,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.ingest_pipeline = IngestionPipeline(engine=admin_engine, registry=build_registry())
     app.state.portfolio_service = PortfolioService(app.state.app_engine)
     app.state.analytics_service = AnalyticsService(app.state.app_engine)
-    app.state.comparison_service = ComparisonService(
-        engine=app.state.app_engine,
-        llm=ChatOllama(
-            base_url=settings.ollama_base_url, model=settings.ollama_model, temperature=0
-        ),
+    # reasoning off + capped output: qwen3.5 think mode spirals for minutes
+    # on strict formatting prompts; the grounded features need plain JSON,
+    # not chains of thought.
+    llm = ChatOllama(
+        base_url=settings.ollama_base_url,
+        model=settings.ollama_model,
+        temperature=0,
+        reasoning=False,
+        num_predict=2000,
+    )
+    app.state.comparison_service = ComparisonService(engine=app.state.app_engine, llm=llm)
+    app.state.analysis_service = AnalysisService(
+        engine=app.state.app_engine, llm=llm, analytics=app.state.analytics_service
     )
 
     log.info("%s started", settings.app_name)
@@ -159,6 +169,7 @@ def create_app() -> FastAPI:
     app.include_router(portfolios_router, prefix=settings.api_prefix)
     app.include_router(market_router, prefix=settings.api_prefix)
     app.include_router(compare_router, prefix=settings.api_prefix)
+    app.include_router(analysis_router, prefix=settings.api_prefix)
     return app
 
 

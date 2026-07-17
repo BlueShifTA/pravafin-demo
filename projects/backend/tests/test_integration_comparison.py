@@ -2,10 +2,14 @@
 
 The LLM is a FakeListChatModel — deterministic, no Ollama required.
 Auto-skips when Postgres is down (`just stack-up` to run).
+
+The final test runs against the real Ollama model (default app wiring) and is
+gated behind CORESAT_REAL_LLM=1 — needs Ollama serving qwen3.5:4b.
 """
 
 import asyncio
 import json
+import os
 
 import asyncpg
 import pytest
@@ -72,8 +76,10 @@ async def _prepare() -> int:
         for ticker, name in (("TSTA", "Alpha Corp"), ("TSTB", "Beta Corp"))
     }
     await conn.execute(
-        "INSERT INTO fundamentals (instrument_id, pe_trailing, revenue, net_profit) VALUES "
-        "($1, 10.0, 5000000, 500000), ($2, 40.0, 9000000, 200000)",
+        "INSERT INTO fundamentals (instrument_id, pe_trailing, revenue, net_profit, "
+        "market_cap, profit_margin, roe, beta, ebit) VALUES "
+        "($1, 10.0, 5000000, 500000, 60000000, 0.1, 0.25, 1.1, 800000), "
+        "($2, 40.0, 9000000, 200000, 150000000, 0.022, 0.08, 1.4, 400000)",
         ids["TSTA"],
         ids["TSTB"],
     )
@@ -158,3 +164,23 @@ def test_comparison_writes_audit_row(portfolio_id: int) -> None:
             await conn.close()
 
     assert asyncio.run(_count()) == 1
+
+
+@pytest.mark.skipif(
+    os.environ.get("CORESAT_REAL_LLM") != "1",
+    reason="real-LLM test — set CORESAT_REAL_LLM=1 with Ollama serving qwen3.5:4b",
+)
+def test_real_llm_comparison_end_to_end(portfolio_id: int) -> None:
+    client = TestClient(app)
+    client.__enter__()
+    try:
+        response = client.post(
+            "/api/compare", json={"tickers": ["TSTA", "TSTB"], "portfolio_id": portfolio_id}
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["model"] == "qwen3.5:4b"
+        assert result["per_criterion"]
+        assert result["summary"]
+    finally:
+        client.__exit__(None, None, None)

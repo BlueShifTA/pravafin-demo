@@ -2,6 +2,7 @@
 
 import {
   Alert,
+  Box,
   Chip,
   Dialog,
   DialogContent,
@@ -53,7 +54,14 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
         )}
         {compare.data && compare.data.status === 200 && (
           <Stack spacing={2}>
-            <Typography>{compare.data.data.summary}</Typography>
+            <Stack direction="row" spacing={1}>
+              {tickers.map((ticker) => (
+                <Chip key={ticker} label={ticker} variant="outlined" color="primary" />
+              ))}
+            </Stack>
+            <Box sx={{ borderLeft: 3, borderColor: "primary.main", pl: 2 }}>
+              <Typography>{compare.data.data.summary}</Typography>
+            </Box>
             <Divider />
             {compare.data.data.per_criterion.map((verdict) => (
               <Stack key={verdict.criterion} direction="row" spacing={2} alignItems="baseline">
@@ -67,9 +75,10 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
             {compare.data.data.caveats.length > 0 && (
               <Alert severity="warning">{compare.data.data.caveats.join(" · ")}</Alert>
             )}
-            <Typography variant="caption" color="text.secondary">
-              model: {compare.data.data.model} — every number checked against injected facts
-            </Typography>
+            <Alert severity="info">
+              AI-generated comparison from a local model ({compare.data.data.model}) — every number
+              checked against injected facts. Not investment advice.
+            </Alert>
           </Stack>
         )}
       </DialogContent>

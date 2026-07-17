@@ -31,6 +31,7 @@ const NAV_ITEMS = [
   { label: "Main", href: "/" },
   { label: "Core", href: "/core" },
   { label: "Satellite", href: "/satellite" },
+  { label: "Indicators", href: "/indicators" },
   { label: "Ingestion", href: "/ingestion" },
   { label: "New portfolio", href: "/wizard" },
 ] as const;

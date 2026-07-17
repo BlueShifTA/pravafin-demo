@@ -25,6 +25,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AnalysisResult,
+  AnalyzeRequest,
   BodyIngestApiIngestAdapterNamePost,
   CandleBar,
   CandlesApiMarketCandlesTickerGetParams,
@@ -35,6 +37,8 @@ import type {
   FundRow,
   HTTPValidationError,
   HealthHealthGet200,
+  IndicatorPoint,
+  IndicatorsApiMarketIndicatorsTickerGetParams,
   IngestApiIngestAdapterNamePostParams,
   IngestReport,
   ListQuarantineApiIngestQuarantineGet200Item,
@@ -2426,6 +2430,375 @@ export function useCandlesApiMarketCandlesTickerGet<
 }
 
 /**
+ * @summary Indicators
+ */
+export type indicatorsApiMarketIndicatorsTickerGetResponse200 = {
+  data: IndicatorPoint[];
+  status: 200;
+};
+
+export type indicatorsApiMarketIndicatorsTickerGetResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type indicatorsApiMarketIndicatorsTickerGetResponseSuccess =
+  indicatorsApiMarketIndicatorsTickerGetResponse200 & {
+    headers: Headers;
+  };
+export type indicatorsApiMarketIndicatorsTickerGetResponseError =
+  indicatorsApiMarketIndicatorsTickerGetResponse422 & {
+    headers: Headers;
+  };
+
+export type indicatorsApiMarketIndicatorsTickerGetResponse =
+  | indicatorsApiMarketIndicatorsTickerGetResponseSuccess
+  | indicatorsApiMarketIndicatorsTickerGetResponseError;
+
+export const getIndicatorsApiMarketIndicatorsTickerGetUrl = (
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/market/indicators/${ticker}?${stringifiedParams}`
+    : `/api/market/indicators/${ticker}`;
+};
+
+export const indicatorsApiMarketIndicatorsTickerGet = async (
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: RequestInit
+): Promise<indicatorsApiMarketIndicatorsTickerGetResponse> => {
+  const res = await fetch(getIndicatorsApiMarketIndicatorsTickerGetUrl(ticker, params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: indicatorsApiMarketIndicatorsTickerGetResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as indicatorsApiMarketIndicatorsTickerGetResponse;
+};
+
+export const getIndicatorsApiMarketIndicatorsTickerGetInfiniteQueryKey = (
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams
+) => {
+  return ["infinite", `/api/market/indicators/${ticker}`, ...(params ? [params] : [])] as const;
+};
+
+export const getIndicatorsApiMarketIndicatorsTickerGetQueryKey = (
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams
+) => {
+  return [`/api/market/indicators/${ticker}`, ...(params ? [params] : [])] as const;
+};
+
+export const getIndicatorsApiMarketIndicatorsTickerGetInfiniteQueryOptions = <
+  TData = InfiniteData<Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getIndicatorsApiMarketIndicatorsTickerGetInfiniteQueryKey(ticker, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+  > = ({ signal }) =>
+    indicatorsApiMarketIndicatorsTickerGet(ticker, params, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!ticker, ...queryOptions } as UseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type IndicatorsApiMarketIndicatorsTickerGetInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+>;
+export type IndicatorsApiMarketIndicatorsTickerGetInfiniteQueryError = HTTPValidationError;
+
+export function useIndicatorsApiMarketIndicatorsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params: undefined | IndicatorsApiMarketIndicatorsTickerGetParams,
+  options: {
+    query: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useIndicatorsApiMarketIndicatorsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useIndicatorsApiMarketIndicatorsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Indicators
+ */
+
+export function useIndicatorsApiMarketIndicatorsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getIndicatorsApiMarketIndicatorsTickerGetInfiniteQueryOptions(
+    ticker,
+    params,
+    options
+  );
+
+  const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getIndicatorsApiMarketIndicatorsTickerGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getIndicatorsApiMarketIndicatorsTickerGetQueryKey(ticker, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+  > = ({ signal }) =>
+    indicatorsApiMarketIndicatorsTickerGet(ticker, params, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!ticker, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type IndicatorsApiMarketIndicatorsTickerGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+>;
+export type IndicatorsApiMarketIndicatorsTickerGetQueryError = HTTPValidationError;
+
+export function useIndicatorsApiMarketIndicatorsTickerGet<
+  TData = Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params: undefined | IndicatorsApiMarketIndicatorsTickerGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useIndicatorsApiMarketIndicatorsTickerGet<
+  TData = Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useIndicatorsApiMarketIndicatorsTickerGet<
+  TData = Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Indicators
+ */
+
+export function useIndicatorsApiMarketIndicatorsTickerGet<
+  TData = Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  params?: IndicatorsApiMarketIndicatorsTickerGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof indicatorsApiMarketIndicatorsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getIndicatorsApiMarketIndicatorsTickerGetQueryOptions(
+    ticker,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Screener
  */
 export type screenerApiMarketScreenerGetResponse200 = {
@@ -3393,4 +3766,123 @@ export const useCompareApiComparePost = <TError = HTTPValidationError, TContext 
   TContext
 > => {
   return useMutation(getCompareApiComparePostMutationOptions(options), queryClient);
+};
+
+/**
+ * @summary Analyze Stock
+ */
+export type analyzeStockApiAnalysisStockPostResponse200 = {
+  data: AnalysisResult;
+  status: 200;
+};
+
+export type analyzeStockApiAnalysisStockPostResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type analyzeStockApiAnalysisStockPostResponseSuccess =
+  analyzeStockApiAnalysisStockPostResponse200 & {
+    headers: Headers;
+  };
+export type analyzeStockApiAnalysisStockPostResponseError =
+  analyzeStockApiAnalysisStockPostResponse422 & {
+    headers: Headers;
+  };
+
+export type analyzeStockApiAnalysisStockPostResponse =
+  | analyzeStockApiAnalysisStockPostResponseSuccess
+  | analyzeStockApiAnalysisStockPostResponseError;
+
+export const getAnalyzeStockApiAnalysisStockPostUrl = () => {
+  return `/api/analysis/stock`;
+};
+
+export const analyzeStockApiAnalysisStockPost = async (
+  analyzeRequest: AnalyzeRequest,
+  options?: RequestInit
+): Promise<analyzeStockApiAnalysisStockPostResponse> => {
+  const res = await fetch(getAnalyzeStockApiAnalysisStockPostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: analyzeStockApiAnalysisStockPostResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as analyzeStockApiAnalysisStockPostResponse;
+};
+
+export const getAnalyzeStockApiAnalysisStockPostMutationOptions = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeStockApiAnalysisStockPost>>,
+    TError,
+    { data: AnalyzeRequest },
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeStockApiAnalysisStockPost>>,
+  TError,
+  { data: AnalyzeRequest },
+  TContext
+> => {
+  const mutationKey = ["analyzeStockApiAnalysisStockPost"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeStockApiAnalysisStockPost>>,
+    { data: AnalyzeRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeStockApiAnalysisStockPost(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeStockApiAnalysisStockPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeStockApiAnalysisStockPost>>
+>;
+export type AnalyzeStockApiAnalysisStockPostMutationBody = AnalyzeRequest;
+export type AnalyzeStockApiAnalysisStockPostMutationError = HTTPValidationError;
+
+/**
+ * @summary Analyze Stock
+ */
+export const useAnalyzeStockApiAnalysisStockPost = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof analyzeStockApiAnalysisStockPost>>,
+      TError,
+      { data: AnalyzeRequest },
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeStockApiAnalysisStockPost>>,
+  TError,
+  { data: AnalyzeRequest },
+  TContext
+> => {
+  return useMutation(getAnalyzeStockApiAnalysisStockPostMutationOptions(options), queryClient);
 };

@@ -78,6 +78,19 @@ class CandleBar(BaseModel):
     volume: int | None
 
 
+class IndicatorPoint(BaseModel):
+    date: datetime.date
+    close: float
+    sma_20: float | None
+    sma_50: float | None
+    sma_200: float | None
+    ema_12: float | None
+    ema_26: float | None
+    rsi: float | None
+    macd: float | None
+    macd_signal: float | None
+
+
 class ScreenerRow(BaseModel):
     ticker: str
     name: str | None

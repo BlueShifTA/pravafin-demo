@@ -67,3 +67,6 @@ docs/_build/
 package-lock.json
 yarn.lock
 .pnpm-store
+
+# Playwright MCP artifacts
+.playwright-mcp/

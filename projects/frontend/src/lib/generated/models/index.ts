@@ -6,6 +6,8 @@
  */
 
 export * from "./allocationSlice";
+export * from "./analysisResult";
+export * from "./analyzeRequest";
 export * from "./bodyIngestApiIngestAdapterNamePost";
 export * from "./candleBar";
 export * from "./candlesApiMarketCandlesTickerGetParams";
@@ -18,6 +20,8 @@ export * from "./exampleEchoResponse";
 export * from "./fundRow";
 export * from "./healthHealthGet200";
 export * from "./hTTPValidationError";
+export * from "./indicatorPoint";
+export * from "./indicatorsApiMarketIndicatorsTickerGetParams";
 export * from "./ingestApiIngestAdapterNamePostParams";
 export * from "./ingestReport";
 export * from "./ingestReportStatus";

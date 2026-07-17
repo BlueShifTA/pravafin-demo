@@ -5,8 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.params import Query
 
-from coresat.domain.portfolio import CandleBar, FundRow, ScreenerRow, TerDrag
+from coresat.domain.portfolio import CandleBar, FundRow, IndicatorPoint, ScreenerRow, TerDrag
 from coresat.services.analytics import AnalyticsService
+from coresat.services.indicators import indicator_points
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -26,6 +27,22 @@ async def candles(
     if not bars:
         raise HTTPException(status_code=404, detail=f"no prices for {ticker}")
     return bars
+
+
+@router.get("/indicators/{ticker}")
+async def indicators(
+    ticker: str,
+    request: Request,
+    days: Annotated[int | None, Query(ge=1)] = None,
+) -> list[IndicatorPoint]:
+    # full history feeds the warm-up windows; `days` only slices the tail
+    bars = await _analytics(request).candles(ticker, None)
+    if not bars:
+        raise HTTPException(status_code=404, detail=f"no prices for {ticker}")
+    points = indicator_points(bars)
+    if days is not None:
+        points = points[-days:]
+    return points
 
 
 @router.get("/screener")

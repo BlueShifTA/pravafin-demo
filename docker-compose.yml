@@ -16,5 +16,16 @@ services:
       timeout: 3s
       retries: 10
 
+  adminer:
+    image: adminer:latest
+    container_name: coresat-adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   coresat-pgdata:
