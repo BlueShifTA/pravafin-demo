@@ -114,8 +114,21 @@ export default function SatellitePage() {
       <Box sx={{ display: "grid", gap: 2 }}>
         <Card variant="outlined">
           <CardContent>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1, gap: 2 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                mb: 1,
+                gap: 2,
+                flexWrap: "wrap",
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={2}
+                alignItems="center"
+                sx={{ flexWrap: "wrap", rowGap: 1.5 }}
+              >
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Screener
                 </Typography>

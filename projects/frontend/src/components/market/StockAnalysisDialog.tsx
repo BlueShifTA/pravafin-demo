@@ -14,6 +14,8 @@ import {
   ListItemText,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useEffect } from "react";
 
@@ -38,6 +40,7 @@ const MATCH_COLOR: Record<string, "success" | "primary" | "warning" | "error" | 
 export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDialogProps) {
   const { portfolioId } = usePortfolio();
   const analyze = useAnalyzeStockApiAnalysisStockPost();
+  const fullScreen = useMediaQuery(useTheme().breakpoints.down("md"));
 
   // fire once per open — mutation trigger, not data fetching
   useEffect(() => {
@@ -50,7 +53,7 @@ export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDial
   const result = analyze.data?.status === 200 ? analyze.data.data : null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ fontWeight: 700 }}>AI analysis: {ticker}</DialogTitle>
       <DialogContent>
         {portfolioId === null && (

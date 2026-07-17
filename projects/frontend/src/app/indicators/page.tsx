@@ -71,7 +71,7 @@ export default function IndicatorsPage() {
     >
       <Box sx={{ display: "grid", gap: 2 }}>
         <Card variant="outlined">
-          <CardContent sx={{ display: "flex", gap: 2 }}>
+          <CardContent sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel id="indicator-ticker">Symbol</InputLabel>
               <Select

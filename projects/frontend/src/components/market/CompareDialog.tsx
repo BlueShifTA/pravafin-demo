@@ -17,6 +17,8 @@ import {
   ListItemText,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useEffect } from "react";
 
@@ -41,6 +43,7 @@ function SectionHeading({ children }: { children: string }) {
 export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
   const { portfolioId } = usePortfolio();
   const compare = useCompareApiComparePost();
+  const fullScreen = useMediaQuery(useTheme().breakpoints.down("md"));
 
   // fire once per open — mutation trigger, not data fetching
   useEffect(() => {
@@ -53,7 +56,7 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
   const result = compare.data?.status === 200 ? compare.data.data : null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, fontWeight: 700 }}>
         <span aria-hidden>🆚</span> AI Stock Comparison
       </DialogTitle>

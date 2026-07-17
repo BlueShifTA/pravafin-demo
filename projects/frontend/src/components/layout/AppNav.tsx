@@ -42,15 +42,39 @@ export function AppNav({ children }: PropsWithChildren) {
   const portfoliosQuery = useListPortfoliosApiPortfoliosGet();
   const portfolios = portfoliosQuery.data?.status === 200 ? portfoliosQuery.data.data : [];
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const navList = (
+    <List>
+      {NAV_ITEMS.map((item) => (
+        <ListItemButton
+          key={item.href}
+          component={Link}
+          href={item.href}
+          selected={pathname === item.href}
+          onClick={() => setMobileNavOpen(false)}
+        >
+          <ListItemText primary={item.label} />
+        </ListItemButton>
+      ))}
+    </List>
+  );
 
   return (
     <Box sx={{ display: "flex" }}>
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar sx={{ gap: 2 }}>
+        <Toolbar sx={{ gap: { xs: 1, sm: 2 } }}>
+          <IconButton
+            aria-label="open navigation"
+            onClick={() => setMobileNavOpen(true)}
+            sx={{ color: "inherit", display: { xs: "inline-flex", md: "none" } }}
+          >
+            ☰
+          </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
             CoreSat
           </Typography>
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+          <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 180 } }}>
             <InputLabel id="portfolio-select">Portfolio</InputLabel>
             <Select
               labelId="portfolio-select"
@@ -82,25 +106,27 @@ export function AppNav({ children }: PropsWithChildren) {
         variant="permanent"
         sx={{
           width: DRAWER_WIDTH,
+          display: { xs: "none", md: "block" },
           "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
         }}
       >
         <Toolbar />
-        <List>
-          {NAV_ITEMS.map((item) => (
-            <ListItemButton
-              key={item.href}
-              component={Link}
-              href={item.href}
-              selected={pathname === item.href}
-            >
-              <ListItemText primary={item.label} />
-            </ListItemButton>
-          ))}
-        </List>
+        {navList}
+      </Drawer>
+      <Drawer
+        variant="temporary"
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        sx={{
+          display: { xs: "block", md: "none" },
+          "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
+        }}
+      >
+        <Toolbar />
+        {navList}
       </Drawer>
       <Drawer anchor="right" open={copilotOpen} onClose={() => setCopilotOpen(false)}>
-        <Box sx={{ width: 320, p: 3 }}>
+        <Box sx={{ width: { xs: "85vw", sm: 320 }, p: 3 }}>
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Copilot
           </Typography>
@@ -112,7 +138,7 @@ export function AppNav({ children }: PropsWithChildren) {
           </Typography>
         </Box>
       </Drawer>
-      <Box component="section" sx={{ flexGrow: 1, ml: `${DRAWER_WIDTH}px`, mt: 8 }}>
+      <Box component="section" sx={{ flexGrow: 1, ml: { xs: 0, md: `${DRAWER_WIDTH}px` }, mt: 8 }}>
         {children}
       </Box>
     </Box>
