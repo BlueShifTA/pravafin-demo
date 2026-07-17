@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # LLM — local Ollama only
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "gemma4:e4b"
+    ollama_model: str = "qwen3.5:4b"
 
     # Security: explicit CORS origins only — no wildcards.  Wildcards are
     # rejected at startup by create_app().  Add your frontend origin here or

@@ -1,94 +1,43 @@
-# Project Instruction
+# CoreSat
 
-Single source of truth for starting new projects with selected agents and project architectures. Combines a runnable full-stack template with instructional documentation for teams.
+Personal portfolio manager built on the **Core-Satellite strategy** — a low-cost passive ETF
+core plus a small set of active stock picks. Interview demo showcasing data ingestion,
+on-the-fly analytics, and a grounded LLM feature over real public market data.
 
-## What's Included
+FastAPI + PostgreSQL (RLS) backend · Next.js/MUI frontend · local Ollama LLM.
 
-- **Runnable template:** FastAPI backend + Next.js frontend with CI, pre-commit, and dev tooling
-- **Instructional docs:** Role-based templates, coding profiles, workflow guides, and reference materials (`instruction/`)
-- **Unified coding rules:** `CLAUDE.md` as the enforced-rules entrypoint, with detailed references in `instruction/reference/`
+## What it demonstrates
 
-## Project Structure
+| Concern | How |
+|---|---|
+| Data ingestion | Adapter registry + pydantic contracts; invalid rows → quarantine with reason; checksummed idempotent runs. 5 adapters over real feeds (yfinance CSVs ×2 layouts, iShares BOM/preamble exports, SEC-derived fundamentals) |
+| Isolation | Postgres Row-Level Security per portfolio (`SET LOCAL` transaction context, `WITH CHECK`, SECURITY DEFINER creation) — data *and* LLM audit rows |
+| Analytics | Everything derived at query time: position values from price series, 10/20y projections (weighted CAGR net of TER, ±1% band), magic formula as SQL window functions |
+| Grounded LLM | Stock comparison: facts fetched by SQL and injected; LLM quotes, never computes; fabrication guard rejects numbers not in the facts; per-call token audit. Local Ollama only |
+| V2 slot | Copilot drawer reserved for the LangGraph agent (see `ARCHITECTURE.md`) |
 
-```text
-project-instruction/
-├── CLAUDE.md          # Enforced coding rules entrypoint (links to instruction/reference/)
-├── README.md
-├── justfile           # Root automation commands
-├── pyproject.toml     # Python workspace config
-├── uv.lock
-├── projects/
-│   ├── backend/       # FastAPI app (example endpoints, tests)
-│   └── frontend/      # Next.js app (MUI, React Query, Orval)
-├── devops/            # Pre-commit config, bootstrap/check scripts, CI Docker
-├── docs/              # Sphinx documentation
-└── instruction/       # Role templates, coding profiles, guides, reference
-```
-
-## Prerequisites
-
-- Python 3.14+
-- [uv](https://github.com/astral-sh/uv)
-- [just](https://github.com/casey/just)
-- Node.js 20+
-
-## Quick Start
+## Quickstart
 
 ```bash
-just install        # Install all dependencies + pre-commit hooks
-just run-backend    # Start FastAPI on :8000
-just run-frontend   # Start Next.js on :3000 (new terminal)
+just install          # deps + pre-commit
+just stack-up         # Postgres 16 (pgvector image) on :5434
+just ingest-all       # seed from ../etops-demo-data (541 tickers, 1.3M price rows)
+just run-backend      # FastAPI on :8000  (needs Ollama for /api/compare)
+just run-frontend     # Next.js on :3000
 ```
 
-Open `http://localhost:3000`
+Tests: `just test` (integration tests auto-skip without Postgres; they use a
+dedicated `coresat_test` database). Full gate: `just run-ci`.
 
-## Commands
+## Data
 
-All automation via `just` — run `just --list` for the full set.
+Public sources staged in `../etops-demo-data/` (see its README for provenance and
+re-download recipes): S&P 500 universe with GICS sectors, 10y daily OHLCV for 541
+tickers, fundamentals + SEC XBRL 10-year financials, iShares fund holdings.
 
-| Command | Description |
-|---------|-------------|
-| `just install` | Install Python + Node + pre-commit |
-| `just run-backend` / `just run-frontend` | Dev servers |
-| `just test` | Backend (pytest) + frontend (vitest) tests |
-| `just lint` | Whole-repo pre-commit run (format, lint, typecheck, custom checks) |
-| `just format` | Auto-fix formatting (ruff + prettier + eslint) |
-| `just typecheck` | mypy + pyright + tsc |
-| `just run-ci` | Mirror GitHub Actions CI locally (coverage gate 80%) |
-| `just generate-frontend-types` | Regenerate Orval API client |
-| `just setup` | One-shot scaffold: bootstrap + install + checklist |
-| `just bootstrap` | Rename template placeholders only |
-| `just template-check` | List remaining template remnants (exit 0 = clean) |
-| `just template-reset-history` | Final de-templating step: wipe template git history into one initial commit |
-| `just create-version [X.Y.Z]` | Tag + push a release (empty = auto patch bump) |
-| `just clean` | Delete deps, build outputs, tool caches (restore: `just install`) |
+## Documents
 
-Before every commit: `just lint && just typecheck && just test` — never `--no-verify`.
-
-## API Contract (FastAPI → OpenAPI → Orval → Frontend)
-
-1. FastAPI serves OpenAPI at `http://127.0.0.1:8000/openapi.json`
-2. Frontend downloads it into `projects/frontend/openapi.json`
-3. Orval generates typed models + React Query hooks into `projects/frontend/src/lib/generated/`
-
-Regenerate after backend API changes: `just run-backend`, then `just generate-frontend-types`.
-
-## Template Demo Surface (Replace After Bootstrap)
-
-- Backend: `GET /health`, `GET /ready`, `POST /api/example/echo`
-- Frontend: health widget, setup form on home page
-
-After first successful build:
-1. Replace template endpoints/components
-2. Run `just template-check` until it reports no remnants
-3. Update `CLAUDE.md` and `README.md` for your project
-
-## Documentation
-
-- Coding rules and workflow: `CLAUDE.md` (read before opening a PR)
-- Instructional docs: `instruction/README.md` — role templates, coding profiles, workflow guides, reference materials
-- Sphinx docs: `docs/` (build with `cd docs && sphinx-build -b html . _build/html`)
-
-## License
-
-Template scaffold provided as-is for reuse and modification.
+- `V1-PLAN.md` — build plan for this version
+- `ARCHITECTURE.md` — full architecture incl. V2 (LangGraph agent, RAG branch)
+- `docs/overview.html` — visual architecture (serve with any static server)
+- `reviews/` — external design review notes

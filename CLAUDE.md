@@ -1,6 +1,10 @@
 # Repository Guidelines
 
-Full-stack project template — FastAPI backend + Next.js frontend (MUI, React Query, Orval), orchestrated with `just`. Also ships instructional docs (`instruction/`) for roles, profiles, and reference material.
+**CoreSat** — Core-Satellite portfolio manager (interview demo). FastAPI + PostgreSQL-with-RLS backend, Next.js frontend (MUI, React Query, Orval), local Ollama LLM, orchestrated with `just`.
+
+Domain vocabulary: a **portfolio** owns **sleeves** (`core` = passive ETF, `satellite` = stock picks) holding **positions**; **fact tables** (instruments, prices_daily, funds, fund_holdings, fundamentals) are shared read-all, **portfolio tables** are RLS-scoped via `SET LOCAL app.portfolio_id`. The **ingestion pipeline** (adapter registry → pydantic contracts → quarantine → loaders, checksummed `ingest_runs`) writes fact tables with the admin engine; the API uses the RLS-enforced app engine. Analytics (projections, magic formula, TER drag) are always computed on the fly — no stored derived tables. The **comparison** feature is one grounded LangChain call (facts injected, numbers guarded); the copilot drawer is a reserved V2 slot for the LangGraph agent (`ARCHITECTURE.md`).
+
+Key extra commands: `just stack-up` (Postgres :5434), `just db-apply`, `just ingest-all [data_dir]`. Tests run against the dedicated `coresat_test` database and auto-skip without Postgres.
 
 Before anything on a dev laptop: verify RTK is active (`rtk --version && rtk gain`). See `~/.claude/RTK.md`.
 
