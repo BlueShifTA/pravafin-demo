@@ -4,6 +4,7 @@ import {
   AppBar,
   Box,
   Chip,
+  Divider,
   Drawer,
   FormControl,
   IconButton,
@@ -16,7 +17,10 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 import MenuIcon from "@mui/icons-material/Menu";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import Link from "next/link";
@@ -35,7 +39,6 @@ const NAV_ITEMS = [
   { label: "Satellite", href: "/satellite" },
   { label: "Indicators", href: "/indicators" },
   { label: "Ingestion", href: "/ingestion" },
-  { label: "New portfolio", href: "/wizard" },
 ] as const;
 
 export function AppNav({ children }: PropsWithChildren) {
@@ -45,6 +48,8 @@ export function AppNav({ children }: PropsWithChildren) {
   const portfolios = portfoliosQuery.data?.status === 200 ? portfoliosQuery.data.data : [];
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [desktopNavOpen, setDesktopNavOpen] = useState(true);
+  const isDesktop = useMediaQuery(useTheme().breakpoints.up("md"));
 
   const navList = (
     <List>
@@ -67,9 +72,11 @@ export function AppNav({ children }: PropsWithChildren) {
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar sx={{ gap: { xs: 1, sm: 2 } }}>
           <IconButton
-            aria-label="open navigation"
-            onClick={() => setMobileNavOpen(true)}
-            sx={{ color: "inherit", display: { xs: "inline-flex", md: "none" } }}
+            aria-label="toggle navigation"
+            onClick={() =>
+              isDesktop ? setDesktopNavOpen((open) => !open) : setMobileNavOpen((open) => !open)
+            }
+            sx={{ color: "inherit" }}
           >
             <MenuIcon />
           </IconButton>
@@ -82,13 +89,22 @@ export function AppNav({ children }: PropsWithChildren) {
               labelId="portfolio-select"
               label="Portfolio"
               value={portfolioId ?? ""}
-              onChange={(event) => setPortfolioId(Number(event.target.value))}
+              onChange={(event) => {
+                if (typeof event.target.value === "number") {
+                  setPortfolioId(event.target.value);
+                }
+              }}
             >
               {portfolios.map((portfolio) => (
                 <MenuItem key={portfolio.id} value={portfolio.id}>
                   {portfolio.name}
                 </MenuItem>
               ))}
+              <Divider />
+              <MenuItem component={Link} href="/wizard">
+                <AddIcon fontSize="small" sx={{ mr: 1 }} />
+                New portfolio
+              </MenuItem>
             </Select>
           </FormControl>
           <Tooltip title="Copilot — coming in V2 (LangGraph agent)">
@@ -105,9 +121,10 @@ export function AppNav({ children }: PropsWithChildren) {
         </Toolbar>
       </AppBar>
       <Drawer
-        variant="permanent"
+        variant="persistent"
+        open={desktopNavOpen}
         sx={{
-          width: DRAWER_WIDTH,
+          width: desktopNavOpen ? DRAWER_WIDTH : 0,
           display: { xs: "none", md: "block" },
           "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box" },
         }}
@@ -140,7 +157,15 @@ export function AppNav({ children }: PropsWithChildren) {
           </Typography>
         </Box>
       </Drawer>
-      <Box component="section" sx={{ flexGrow: 1, ml: { xs: 0, md: `${DRAWER_WIDTH}px` }, mt: 8 }}>
+      <Box
+        component="section"
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          ml: { xs: 0, md: desktopNavOpen ? `${DRAWER_WIDTH}px` : 0 },
+          mt: 8,
+        }}
+      >
         {children}
       </Box>
     </Box>

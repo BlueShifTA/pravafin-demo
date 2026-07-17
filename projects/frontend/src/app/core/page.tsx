@@ -18,6 +18,7 @@ import { LineChart } from "@mui/x-charts";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { Spinner } from "@/components/ui/feedback/Spinner";
 import { formatMoney, formatPercent } from "@/lib/format";
 import {
   useFundsApiMarketFundsGet,
@@ -68,6 +69,11 @@ export default function CorePage() {
               onChange={(event) => setSearch(event.target.value)}
               sx={{ mb: 1.5 }}
             />
+            {fundsQuery.isLoading && (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <Spinner size={32} />
+              </Box>
+            )}
             <TableContainer sx={{ maxHeight: ROW_HEIGHT_PX * (VISIBLE_ROWS + 1) }}>
               <Table size="small" stickyHeader>
                 <TableHead>
@@ -102,6 +108,13 @@ export default function CorePage() {
             </TableContainer>
           </CardContent>
         </Card>
+        {dragQuery.isLoading && (
+          <Card variant="outlined">
+            <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+              <Spinner size={32} />
+            </CardContent>
+          </Card>
+        )}
         {drag && (
           <Card variant="outlined">
             <CardContent>
@@ -109,8 +122,8 @@ export default function CorePage() {
                 {drag.fund_ticker}: {formatMoney(drag.capital)} over {drag.years} years
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Growth at {formatPercent(drag.cagr_10y)} CAGR, gross versus net of the {drag.ter}%
-                TER.
+                Growth at {formatPercent(drag.cagr_10y)} CAGR, gross versus net after the {drag.ter}
+                % TER.
               </Typography>
               <LineChart
                 height={320}
@@ -124,7 +137,7 @@ export default function CorePage() {
                   },
                   {
                     data: drag.series.map((point) => point.net_value),
-                    label: "Net of TER",
+                    label: "Net after TER",
                     color: "#ff9800",
                     showMark: false,
                     area: true,

@@ -14,6 +14,7 @@ import { LineChart } from "@mui/x-charts";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { Spinner } from "@/components/ui/feedback/Spinner";
 import {
   useIndicatorsApiMarketIndicatorsTickerGet,
   useScreenerApiMarketScreenerGet,
@@ -105,6 +106,13 @@ export default function IndicatorsPage() {
           </CardContent>
         </Card>
 
+        {(screenerQuery.isLoading || indicatorsQuery.isLoading) && (
+          <Card variant="outlined">
+            <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+              <Spinner size={32} />
+            </CardContent>
+          </Card>
+        )}
         <Card variant="outlined">
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>

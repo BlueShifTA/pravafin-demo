@@ -21,6 +21,7 @@ import type { GridColDef, GridRowSelectionModel } from "@mui/x-data-grid";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { Spinner } from "@/components/ui/feedback/Spinner";
 import { CandleChart } from "@/components/market/CandleChart";
 import { CompareDialog } from "@/components/market/CompareDialog";
 import { StockAnalysisDialog } from "@/components/market/StockAnalysisDialog";
@@ -194,10 +195,19 @@ export default function SatellitePage() {
               checkboxSelection
               onRowSelectionModelChange={onSelection}
               density="compact"
+              initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+              pageSizeOptions={[10, 25, 50, 100]}
               sx={{ height: 480 }}
             />
           </CardContent>
         </Card>
+        {chartTicker && barsQuery.isLoading && (
+          <Card variant="outlined">
+            <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+              <Spinner size={32} />
+            </CardContent>
+          </Card>
+        )}
         {chartTicker && bars && (
           <Card variant="outlined">
             <CardContent>
