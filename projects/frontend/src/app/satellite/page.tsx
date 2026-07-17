@@ -27,6 +27,7 @@ import { StockAnalysisDialog } from "@/components/market/StockAnalysisDialog";
 import { formatNumber, formatPercent } from "@/lib/format";
 import {
   useCandlesApiMarketCandlesTickerGet,
+  useIndicatorsApiMarketIndicatorsTickerGet,
   useScreenerApiMarketScreenerGet,
 } from "@/lib/generated/endpoints";
 
@@ -58,6 +59,12 @@ export default function SatellitePage() {
     { query: { enabled: chartTicker !== null } }
   );
   const bars = barsQuery.data?.status === 200 ? barsQuery.data.data : null;
+  const indicatorsQuery = useIndicatorsApiMarketIndicatorsTickerGet(
+    chartTicker ?? "",
+    { days: 365 },
+    { query: { enabled: chartTicker !== null } }
+  );
+  const indicators = indicatorsQuery.data?.status === 200 ? indicatorsQuery.data.data : undefined;
 
   const onSelection = (model: GridRowSelectionModel) => {
     const ids = [...(model.ids ?? [])].map(String);
@@ -197,7 +204,7 @@ export default function SatellitePage() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
                 {chartTicker} — daily candles (1y)
               </Typography>
-              <CandleChart bars={bars} />
+              <CandleChart bars={bars} indicators={indicators} />
             </CardContent>
           </Card>
         )}

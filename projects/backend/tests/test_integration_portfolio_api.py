@@ -155,3 +155,16 @@ def test_ter_drag_compares_gross_and_net(client: TestClient) -> None:
     assert drag["gross_value"] == pytest.approx(10_000 * 1.10**10, rel=1e-9)
     assert drag["net_value"] == pytest.approx(10_000 * (1.10 - 0.005) ** 10, rel=1e-9)
     assert drag["drag"] == pytest.approx(drag["gross_value"] - drag["net_value"], rel=1e-9)
+
+
+def test_ter_drag_returns_yearly_series(client: TestClient) -> None:
+    drag = client.get(
+        "/api/market/ter-drag", params={"fund": "TSTF", "capital": 10_000, "years": 10}
+    ).json()
+    series = drag["series"]
+    assert len(series) == 11  # year 0 through year 10
+    assert series[0] == {"year": 0, "gross_value": 10_000, "net_value": 10_000}
+    assert series[-1]["year"] == 10
+    assert series[-1]["gross_value"] == pytest.approx(drag["gross_value"], rel=1e-9)
+    assert series[-1]["net_value"] == pytest.approx(drag["net_value"], rel=1e-9)
+    assert all(point["net_value"] <= point["gross_value"] for point in series)

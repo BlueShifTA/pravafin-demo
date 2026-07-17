@@ -1,17 +1,20 @@
 "use client";
 
 import {
+  Box,
   Card,
   CardContent,
-  Grid,
+  Stack,
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
-import { BarChart } from "@mui/x-charts";
+import { LineChart } from "@mui/x-charts";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
@@ -21,9 +24,14 @@ import {
   useTerDragApiMarketTerDragGet,
 } from "@/lib/generated/endpoints";
 
+// 8 rows at size="small" density; the rest scroll within the container
+const VISIBLE_ROWS = 8;
+const ROW_HEIGHT_PX = 37;
+
 export default function CorePage() {
   const fundsQuery = useFundsApiMarketFundsGet();
   const funds = fundsQuery.data?.status === 200 ? fundsQuery.data.data : [];
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const dragQuery = useTerDragApiMarketTerDragGet(
     { fund: selected ?? "", capital: 10_000, years: 20 },
@@ -31,16 +39,37 @@ export default function CorePage() {
   );
   const drag = dragQuery.data?.status === 200 ? dragQuery.data.data : null;
 
+  const query = search.trim().toLowerCase();
+  const visibleFunds =
+    query === ""
+      ? funds
+      : funds.filter(
+          (fund) =>
+            fund.ticker.toLowerCase().includes(query) ||
+            (fund.name ?? "").toLowerCase().includes(query)
+        );
+
+  const rippedPercent = drag && drag.gross_value > 0 ? (drag.drag / drag.gross_value) * 100 : null;
+
   return (
     <PageShell
       title="Core sleeve — fund comparison"
       description="Click a fund to simulate 20-year TER drag on $10,000."
     >
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Card variant="outlined">
-            <CardContent>
-              <Table size="small">
+      <Stack spacing={2}>
+        <Card variant="outlined">
+          <CardContent>
+            <TextField
+              size="small"
+              fullWidth
+              label="Search funds"
+              placeholder="Ticker or name"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              sx={{ mb: 1.5 }}
+            />
+            <TableContainer sx={{ maxHeight: ROW_HEIGHT_PX * (VISIBLE_ROWS + 1) }}>
+              <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell>Ticker</TableCell>
@@ -51,7 +80,7 @@ export default function CorePage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {funds.map((fund) => (
+                  {visibleFunds.map((fund) => (
                     <TableRow
                       key={fund.ticker}
                       hover
@@ -70,30 +99,51 @@ export default function CorePage() {
                   ))}
                 </TableBody>
               </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+        {drag && (
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                {drag.fund_ticker}: {formatMoney(drag.capital)} over {drag.years} years
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Growth at {formatPercent(drag.cagr_10y)} CAGR, gross versus net of the {drag.ter}%
+                TER.
+              </Typography>
+              <LineChart
+                height={320}
+                xAxis={[{ data: drag.series.map((point) => point.year), label: "year" }]}
+                series={[
+                  {
+                    data: drag.series.map((point) => point.gross_value),
+                    label: "Gross growth",
+                    color: "#1976d2",
+                    showMark: false,
+                  },
+                  {
+                    data: drag.series.map((point) => point.net_value),
+                    label: "Net of TER",
+                    color: "#ff9800",
+                    showMark: false,
+                    area: true,
+                  },
+                ]}
+              />
+              <Box sx={{ mt: 1 }}>
+                <Typography color="text.secondary">
+                  After {drag.years} years: {formatMoney(drag.gross_value)} gross versus{" "}
+                  {formatMoney(drag.net_value)} net — the TER rips out {formatMoney(drag.drag)}
+                  {rippedPercent !== null &&
+                    ` (${formatPercent(rippedPercent / 100)} of the final gross value)`}
+                  .
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 5 }}>
-          {drag && (
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {drag.fund_ticker}: TER drag over {drag.years}y
-                </Typography>
-                <BarChart
-                  height={280}
-                  xAxis={[{ data: ["gross", "net of TER"], scaleType: "band" }]}
-                  series={[{ data: [drag.gross_value, drag.net_value] }]}
-                />
-                <Typography color="text.secondary">
-                  {drag.ter}% TER costs {formatMoney(drag.drag)} on {formatMoney(drag.capital)} at{" "}
-                  {formatPercent(drag.cagr_10y)} CAGR.
-                </Typography>
-              </CardContent>
-            </Card>
-          )}
-        </Grid>
-      </Grid>
+        )}
+      </Stack>
     </PageShell>
   );
 }

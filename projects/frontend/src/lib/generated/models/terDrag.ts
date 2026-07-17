@@ -4,6 +4,7 @@
  * CoreSat API
  * OpenAPI spec version: 0.1.0
  */
+import type { TerDragPoint } from "./terDragPoint";
 
 export interface TerDrag {
   fund_ticker: string;
@@ -14,4 +15,5 @@ export interface TerDrag {
   gross_value: number;
   net_value: number;
   drag: number;
+  series: TerDragPoint[];
 }

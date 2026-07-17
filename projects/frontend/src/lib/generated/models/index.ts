@@ -39,6 +39,7 @@ export * from "./screenerRow";
 export * from "./sleeveDrift";
 export * from "./terDrag";
 export * from "./terDragApiMarketTerDragGetParams";
+export * from "./terDragPoint";
 export * from "./tickerAssessment";
 export * from "./validationError";
 export * from "./validationErrorCtx";

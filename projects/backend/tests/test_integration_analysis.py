@@ -19,9 +19,9 @@ from tests.test_integration_comparison import ADMIN_DSN, _prepare
 
 _GOOD_NARRATIVE = json.dumps(
     {
-        "summary": "Alpha Corp trades at P/E 10 with revenue of 5000000.",
+        "summary": "Alpha Corp trades at P/E 10 with revenue of 5M.",
         "strengths": ["Cheap on earnings at P/E 10", "Profitable with net profit 500000"],
-        "weaknesses": ["Small revenue base of 5000000"],
+        "weaknesses": ["Small revenue base of 5M"],
         "caveats": ["Snapshot data only."],
     }
 )

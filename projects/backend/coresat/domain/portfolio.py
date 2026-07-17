@@ -115,6 +115,12 @@ class FundRow(BaseModel):
     cagr_10y: float | None
 
 
+class TerDragPoint(BaseModel):
+    year: int
+    gross_value: float
+    net_value: float
+
+
 class TerDrag(BaseModel):
     fund_ticker: str
     ter: float
@@ -124,3 +130,4 @@ class TerDrag(BaseModel):
     gross_value: float
     net_value: float
     drag: float
+    series: list[TerDragPoint]

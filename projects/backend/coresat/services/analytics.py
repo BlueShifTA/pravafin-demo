@@ -13,6 +13,7 @@ from coresat.domain.portfolio import (
     ScreenerRow,
     SleeveDrift,
     TerDrag,
+    TerDragPoint,
 )
 from coresat.services.projection import project
 
@@ -211,6 +212,14 @@ class AnalyticsService:
         rate = float(fund["cagr_10y"])
         gross = capital * (1 + rate) ** years
         net = capital * (1 + rate - ter / 100) ** years
+        series = [
+            TerDragPoint(
+                year=year,
+                gross_value=capital * (1 + rate) ** year,
+                net_value=capital * (1 + rate - ter / 100) ** year,
+            )
+            for year in range(years + 1)
+        ]
         return TerDrag(
             fund_ticker=fund_ticker,
             ter=ter,
@@ -220,4 +229,5 @@ class AnalyticsService:
             gross_value=gross,
             net_value=net,
             drag=gross - net,
+            series=series,
         )

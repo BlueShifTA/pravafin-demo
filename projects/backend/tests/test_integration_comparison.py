@@ -36,11 +36,11 @@ _GOOD_VERDICT = json.dumps(
             {
                 "ticker": "TSTA",
                 "pros": ["Cheap at P/E 10.0"],
-                "cons": ["Smaller revenue of 5000000"],
+                "cons": ["Smaller revenue of 5M"],
             },
             {
                 "ticker": "TSTB",
-                "pros": ["Larger revenue of 9000000"],
+                "pros": ["Larger revenue of 9M"],
                 "cons": ["Expensive at P/E 40.0"],
             },
         ],

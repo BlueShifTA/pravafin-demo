@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -64,9 +65,10 @@ export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDial
           </Alert>
         )}
         {analyze.isPending && (
-          <Typography color="text.secondary">
-            Asking the local model (grounded on ingested fundamentals)…
-          </Typography>
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4 }}>
+            <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Analyzing {ticker} with AI...</Typography>
+          </Box>
         )}
         {analyze.isError && (
           <Stack spacing={1}>
@@ -133,10 +135,6 @@ export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDial
             {result.caveats.length > 0 && (
               <Alert severity="warning">{result.caveats.join(" · ")}</Alert>
             )}
-            <Alert severity="info">
-              AI-generated analysis from a local model ({result.model}) — every number checked
-              against injected facts. Not investment advice.
-            </Alert>
           </Stack>
         )}
       </DialogContent>

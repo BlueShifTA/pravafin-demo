@@ -20,9 +20,11 @@ from coresat.db.session import portfolio_scope
 from coresat.services.portfolios import UnknownTickerError
 
 # numbers below this are allowed unmatched: ordinals, ratios, percentages the
-# model may legitimately phrase ("3 times", "top 2") without fabricating facts
+# model may legitimately phrase ("3 times", "top 2") without fabricating facts.
+# B/M-suffixed figures are exempt from the ceiling — a fabricated "93.5B" is
+# small as a mantissa but must still match the injected facts.
 _SMALL_NUMBER_CEILING = 100.0
-_NUMBER_PATTERN = re.compile(r"-?\d[\d,]*\.?\d*")
+_NUMBER_PATTERN = re.compile(r"(-?\d[\d,]*\.?\d*)\s?([BM%](?![A-Za-z]))?")
 
 FACT_COLUMNS = (
     "pe_trailing",
@@ -41,6 +43,11 @@ FACT_COLUMNS = (
     "cagr_10y",
     "ebit",
 )
+
+# money renders compact (B/M) and fractions as percents so the model quotes
+# human-readable figures verbatim instead of raw 11-digit values
+_MONEY_COLUMNS = frozenset({"market_cap", "revenue", "net_profit", "free_cashflow", "ebit"})
+_FRACTION_COLUMNS = frozenset({"profit_margin", "roe", "cagr_5y", "cagr_10y"})
 
 
 class FabricatedNumberError(ValueError):
@@ -70,6 +77,27 @@ async def fetch_facts(engine: AsyncEngine, tickers: list[str]) -> list[dict[str,
     return [dict(row) for row in rows]
 
 
+def _six_significant_figures(value: Decimal) -> Decimal:
+    # raw DOUBLE PRECISION values arrive as 28-digit Decimals that bloat the
+    # prompt and get misquoted by the model, tripping the fabrication guard
+    if value == 0:
+        return value
+    return value.quantize(Decimal(1).scaleb(value.adjusted() - 5)).normalize()
+
+
+def _render_value(column: str, value: object) -> tuple[str, Decimal]:
+    decimal_value = Decimal(str(value)).normalize()
+    if column in _FRACTION_COLUMNS:
+        percent = (decimal_value * 100).quantize(Decimal("0.01")).normalize()
+        return f"{format(percent, 'f')}%", percent
+    if column in _MONEY_COLUMNS and abs(decimal_value) >= 1_000_000:
+        scale, suffix = (9, "B") if abs(decimal_value) >= 1_000_000_000 else (6, "M")
+        mantissa = (decimal_value.scaleb(-scale)).quantize(Decimal("0.001")).normalize()
+        return f"{format(mantissa, 'f')}{suffix}", mantissa
+    rounded = _six_significant_figures(decimal_value)
+    return format(rounded, "f"), rounded
+
+
 def render_facts(rows: list[dict[str, object]]) -> tuple[str, set[Decimal]]:
     # One "column: value" line per fact — a wide pipe table makes small models
     # misattribute columns (e.g. read debt_to_equity as free cash flow), which
@@ -83,27 +111,22 @@ def render_facts(rows: list[dict[str, object]]) -> tuple[str, set[Decimal]]:
             if value is None:
                 lines.append(f"  {column}: n/a")
             else:
-                # 6 significant figures: raw DOUBLE PRECISION values arrive as
-                # 28-digit Decimals that bloat the prompt and get misquoted by
-                # the model, tripping the fabrication guard. The grounding set
-                # must hold exactly the rendered (rounded) values.
-                decimal_value = Decimal(str(value)).normalize()
-                if decimal_value != 0:
-                    decimal_value = decimal_value.quantize(
-                        Decimal(1).scaleb(decimal_value.adjusted() - 5)
-                    ).normalize()
-                numbers.add(decimal_value)
-                lines.append(f"  {column}: {format(decimal_value, 'f')}")
+                rendered, grounded_number = _render_value(column, value)
+                numbers.add(grounded_number)
+                lines.append(f"  {column}: {rendered}")
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks), numbers
 
 
 def numbers_grounded(prose: str, fact_numbers: set[Decimal]) -> bool:
-    for match in _NUMBER_PATTERN.findall(prose):
-        candidate = Decimal(match.replace(",", "")).normalize()
-        if abs(candidate) <= Decimal(str(_SMALL_NUMBER_CEILING)):
+    for number_text, suffix in _NUMBER_PATTERN.findall(prose):
+        candidate = Decimal(number_text.replace(",", "")).normalize()
+        if suffix in ("B", "M"):
+            if candidate not in fact_numbers:
+                return False
+        elif abs(candidate) <= Decimal(str(_SMALL_NUMBER_CEILING)):
             continue
-        if candidate not in fact_numbers:
+        elif candidate not in fact_numbers:
             return False
     return True
 

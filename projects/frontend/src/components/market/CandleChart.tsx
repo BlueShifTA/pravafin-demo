@@ -1,14 +1,25 @@
 "use client";
 
 import { Box } from "@mui/material";
-import { CandlestickSeries, createChart } from "lightweight-charts";
+import { CandlestickSeries, LineSeries, createChart } from "lightweight-charts";
 import { useEffect, useRef } from "react";
 
-import type { CandleBar } from "@/lib/generated/models";
+import type { CandleBar, IndicatorPoint } from "@/lib/generated/models";
+
+const OVERLAYS = [
+  { key: "sma_20", label: "SMA 20", color: "#4caf50" },
+  { key: "sma_50", label: "SMA 50", color: "#ff9800" },
+  { key: "sma_200", label: "SMA 200", color: "#f44336" },
+] as const;
+
+type CandleChartProps = {
+  bars: CandleBar[];
+  indicators?: IndicatorPoint[];
+};
 
 // useEffect is justified here: lightweight-charts is an imperative canvas
 // library that must mount into a real DOM node.
-export function CandleChart({ bars }: { bars: CandleBar[] }) {
+export function CandleChart({ bars, indicators }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,9 +41,23 @@ export function CandleChart({ bars }: { bars: CandleBar[] }) {
           close: bar.close,
         }))
     );
+    for (const overlay of OVERLAYS) {
+      const line = chart.addSeries(LineSeries, {
+        color: overlay.color,
+        lineWidth: 1,
+        title: overlay.label,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      line.setData(
+        (indicators ?? [])
+          .filter((point) => point[overlay.key] != null)
+          .map((point) => ({ time: point.date, value: point[overlay.key] as number }))
+      );
+    }
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [bars]);
+  }, [bars, indicators]);
 
   return <Box ref={containerRef} sx={{ width: "100%", height: 320 }} />;
 }
