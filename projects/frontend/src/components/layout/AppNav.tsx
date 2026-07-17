@@ -3,7 +3,6 @@
 import {
   AppBar,
   Box,
-  Chip,
   Divider,
   Drawer,
   FormControl,
@@ -28,6 +27,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { PropsWithChildren } from "react";
 
+import { CopilotDrawer } from "@/components/copilot/CopilotDrawer";
 import { useListPortfoliosApiPortfoliosGet } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
@@ -37,8 +37,9 @@ const NAV_ITEMS = [
   { label: "Main", href: "/" },
   { label: "Core", href: "/core" },
   { label: "Satellite", href: "/satellite" },
-  { label: "Indicators", href: "/indicators" },
-  { label: "Ingestion", href: "/ingestion" },
+  // hidden for the demo — pages still exist, re-enable by uncommenting
+  // { label: "Indicators", href: "/indicators" },
+  // { label: "Ingestion", href: "/ingestion" },
 ] as const;
 
 export function AppNav({ children }: PropsWithChildren) {
@@ -107,7 +108,7 @@ export function AppNav({ children }: PropsWithChildren) {
               </MenuItem>
             </Select>
           </FormControl>
-          <Tooltip title="Copilot — coming in V2 (LangGraph agent)">
+          <Tooltip title="Copilot — grounded portfolio chat">
             <span>
               <IconButton
                 aria-label="copilot"
@@ -144,19 +145,7 @@ export function AppNav({ children }: PropsWithChildren) {
         <Toolbar />
         {navList}
       </Drawer>
-      <Drawer anchor="right" open={copilotOpen} onClose={() => setCopilotOpen(false)}>
-        <Box sx={{ width: { xs: "85vw", sm: 320 }, p: 3 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Copilot
-          </Typography>
-          <Chip label="V2" size="small" color="warning" sx={{ my: 1 }} />
-          <Typography color="text.secondary">
-            Per-portfolio chat with grounded answers (LangGraph agent: scope guard → orchestrator →
-            RAG / SQL tools → synthesiser → grounding validator). Ships in V2 — the UI slot is
-            reserved so the product shape is complete.
-          </Typography>
-        </Box>
-      </Drawer>
+      <CopilotDrawer open={copilotOpen} onClose={() => setCopilotOpen(false)} />
       {/* no margin-left: the drawer's root box already reserves its width in this flex row */}
       <Box component="section" sx={{ flexGrow: 1, minWidth: 0, mt: 8 }}>
         {children}
