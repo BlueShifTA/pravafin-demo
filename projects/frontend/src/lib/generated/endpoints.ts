@@ -27,11 +27,15 @@ import type {
 import type {
   AnalysisResult,
   AnalyzeRequest,
+  AuditEntry,
   BodyIngestApiIngestAdapterNamePost,
   CandleBar,
   CandlesApiMarketCandlesTickerGetParams,
+  ChatMessageOut,
+  ChatRequest,
   CompareRequest,
   ComparisonResult,
+  CopilotInfo,
   ExampleEchoRequest,
   ExampleEchoResponse,
   FundRow,
@@ -4216,3 +4220,1192 @@ export const useAnalyzeStockApiAnalysisStockPost = <
 > => {
   return useMutation(getAnalyzeStockApiAnalysisStockPostMutationOptions(options), queryClient);
 };
+
+/**
+ * @summary Chat
+ */
+export type chatApiPortfoliosPortfolioIdChatPostResponse200 = {
+  data: unknown;
+  status: 200;
+};
+
+export type chatApiPortfoliosPortfolioIdChatPostResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type chatApiPortfoliosPortfolioIdChatPostResponseSuccess =
+  chatApiPortfoliosPortfolioIdChatPostResponse200 & {
+    headers: Headers;
+  };
+export type chatApiPortfoliosPortfolioIdChatPostResponseError =
+  chatApiPortfoliosPortfolioIdChatPostResponse422 & {
+    headers: Headers;
+  };
+
+export type chatApiPortfoliosPortfolioIdChatPostResponse =
+  | chatApiPortfoliosPortfolioIdChatPostResponseSuccess
+  | chatApiPortfoliosPortfolioIdChatPostResponseError;
+
+export const getChatApiPortfoliosPortfolioIdChatPostUrl = (portfolioId: number) => {
+  return `/api/portfolios/${portfolioId}/chat`;
+};
+
+export const chatApiPortfoliosPortfolioIdChatPost = async (
+  portfolioId: number,
+  chatRequest: ChatRequest,
+  options?: RequestInit
+): Promise<chatApiPortfoliosPortfolioIdChatPostResponse> => {
+  const res = await fetch(getChatApiPortfoliosPortfolioIdChatPostUrl(portfolioId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(chatRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: chatApiPortfoliosPortfolioIdChatPostResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as chatApiPortfoliosPortfolioIdChatPostResponse;
+};
+
+export const getChatApiPortfoliosPortfolioIdChatPostMutationOptions = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof chatApiPortfoliosPortfolioIdChatPost>>,
+    TError,
+    { portfolioId: number; data: ChatRequest },
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof chatApiPortfoliosPortfolioIdChatPost>>,
+  TError,
+  { portfolioId: number; data: ChatRequest },
+  TContext
+> => {
+  const mutationKey = ["chatApiPortfoliosPortfolioIdChatPost"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof chatApiPortfoliosPortfolioIdChatPost>>,
+    { portfolioId: number; data: ChatRequest }
+  > = (props) => {
+    const { portfolioId, data } = props ?? {};
+
+    return chatApiPortfoliosPortfolioIdChatPost(portfolioId, data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChatApiPortfoliosPortfolioIdChatPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof chatApiPortfoliosPortfolioIdChatPost>>
+>;
+export type ChatApiPortfoliosPortfolioIdChatPostMutationBody = ChatRequest;
+export type ChatApiPortfoliosPortfolioIdChatPostMutationError = HTTPValidationError;
+
+/**
+ * @summary Chat
+ */
+export const useChatApiPortfoliosPortfolioIdChatPost = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof chatApiPortfoliosPortfolioIdChatPost>>,
+      TError,
+      { portfolioId: number; data: ChatRequest },
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof chatApiPortfoliosPortfolioIdChatPost>>,
+  TError,
+  { portfolioId: number; data: ChatRequest },
+  TContext
+> => {
+  return useMutation(getChatApiPortfoliosPortfolioIdChatPostMutationOptions(options), queryClient);
+};
+
+/**
+ * @summary Chat History
+ */
+export type chatHistoryApiPortfoliosPortfolioIdChatGetResponse200 = {
+  data: ChatMessageOut[];
+  status: 200;
+};
+
+export type chatHistoryApiPortfoliosPortfolioIdChatGetResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type chatHistoryApiPortfoliosPortfolioIdChatGetResponseSuccess =
+  chatHistoryApiPortfoliosPortfolioIdChatGetResponse200 & {
+    headers: Headers;
+  };
+export type chatHistoryApiPortfoliosPortfolioIdChatGetResponseError =
+  chatHistoryApiPortfoliosPortfolioIdChatGetResponse422 & {
+    headers: Headers;
+  };
+
+export type chatHistoryApiPortfoliosPortfolioIdChatGetResponse =
+  | chatHistoryApiPortfoliosPortfolioIdChatGetResponseSuccess
+  | chatHistoryApiPortfoliosPortfolioIdChatGetResponseError;
+
+export const getChatHistoryApiPortfoliosPortfolioIdChatGetUrl = (portfolioId: number) => {
+  return `/api/portfolios/${portfolioId}/chat`;
+};
+
+export const chatHistoryApiPortfoliosPortfolioIdChatGet = async (
+  portfolioId: number,
+  options?: RequestInit
+): Promise<chatHistoryApiPortfoliosPortfolioIdChatGetResponse> => {
+  const res = await fetch(getChatHistoryApiPortfoliosPortfolioIdChatGetUrl(portfolioId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: chatHistoryApiPortfoliosPortfolioIdChatGetResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as chatHistoryApiPortfoliosPortfolioIdChatGetResponse;
+};
+
+export const getChatHistoryApiPortfoliosPortfolioIdChatGetInfiniteQueryKey = (
+  portfolioId: number
+) => {
+  return ["infinite", `/api/portfolios/${portfolioId}/chat`] as const;
+};
+
+export const getChatHistoryApiPortfoliosPortfolioIdChatGetQueryKey = (portfolioId: number) => {
+  return [`/api/portfolios/${portfolioId}/chat`] as const;
+};
+
+export const getChatHistoryApiPortfoliosPortfolioIdChatGetInfiniteQueryOptions = <
+  TData = InfiniteData<Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getChatHistoryApiPortfoliosPortfolioIdChatGetInfiniteQueryKey(portfolioId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+  > = ({ signal }) =>
+    chatHistoryApiPortfoliosPortfolioIdChatGet(portfolioId, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!portfolioId, ...queryOptions } as UseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ChatHistoryApiPortfoliosPortfolioIdChatGetInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+>;
+export type ChatHistoryApiPortfoliosPortfolioIdChatGetInfiniteQueryError = HTTPValidationError;
+
+export function useChatHistoryApiPortfoliosPortfolioIdChatGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options: {
+    query: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+          TError,
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useChatHistoryApiPortfoliosPortfolioIdChatGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+          TError,
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useChatHistoryApiPortfoliosPortfolioIdChatGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Chat History
+ */
+
+export function useChatHistoryApiPortfoliosPortfolioIdChatGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getChatHistoryApiPortfoliosPortfolioIdChatGetInfiniteQueryOptions(
+    portfolioId,
+    options
+  );
+
+  const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getChatHistoryApiPortfoliosPortfolioIdChatGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getChatHistoryApiPortfoliosPortfolioIdChatGetQueryKey(portfolioId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+  > = ({ signal }) =>
+    chatHistoryApiPortfoliosPortfolioIdChatGet(portfolioId, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!portfolioId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ChatHistoryApiPortfoliosPortfolioIdChatGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+>;
+export type ChatHistoryApiPortfoliosPortfolioIdChatGetQueryError = HTTPValidationError;
+
+export function useChatHistoryApiPortfoliosPortfolioIdChatGet<
+  TData = Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+          TError,
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useChatHistoryApiPortfoliosPortfolioIdChatGet<
+  TData = Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+          TError,
+          Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useChatHistoryApiPortfoliosPortfolioIdChatGet<
+  TData = Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Chat History
+ */
+
+export function useChatHistoryApiPortfoliosPortfolioIdChatGet<
+  TData = Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof chatHistoryApiPortfoliosPortfolioIdChatGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getChatHistoryApiPortfoliosPortfolioIdChatGetQueryOptions(
+    portfolioId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Clear Chat
+ */
+export type clearChatApiPortfoliosPortfolioIdChatDeleteResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type clearChatApiPortfoliosPortfolioIdChatDeleteResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type clearChatApiPortfoliosPortfolioIdChatDeleteResponseSuccess =
+  clearChatApiPortfoliosPortfolioIdChatDeleteResponse204 & {
+    headers: Headers;
+  };
+export type clearChatApiPortfoliosPortfolioIdChatDeleteResponseError =
+  clearChatApiPortfoliosPortfolioIdChatDeleteResponse422 & {
+    headers: Headers;
+  };
+
+export type clearChatApiPortfoliosPortfolioIdChatDeleteResponse =
+  | clearChatApiPortfoliosPortfolioIdChatDeleteResponseSuccess
+  | clearChatApiPortfoliosPortfolioIdChatDeleteResponseError;
+
+export const getClearChatApiPortfoliosPortfolioIdChatDeleteUrl = (portfolioId: number) => {
+  return `/api/portfolios/${portfolioId}/chat`;
+};
+
+export const clearChatApiPortfoliosPortfolioIdChatDelete = async (
+  portfolioId: number,
+  options?: RequestInit
+): Promise<clearChatApiPortfoliosPortfolioIdChatDeleteResponse> => {
+  const res = await fetch(getClearChatApiPortfoliosPortfolioIdChatDeleteUrl(portfolioId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: clearChatApiPortfoliosPortfolioIdChatDeleteResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as clearChatApiPortfoliosPortfolioIdChatDeleteResponse;
+};
+
+export const getClearChatApiPortfoliosPortfolioIdChatDeleteMutationOptions = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearChatApiPortfoliosPortfolioIdChatDelete>>,
+    TError,
+    { portfolioId: number },
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearChatApiPortfoliosPortfolioIdChatDelete>>,
+  TError,
+  { portfolioId: number },
+  TContext
+> => {
+  const mutationKey = ["clearChatApiPortfoliosPortfolioIdChatDelete"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearChatApiPortfoliosPortfolioIdChatDelete>>,
+    { portfolioId: number }
+  > = (props) => {
+    const { portfolioId } = props ?? {};
+
+    return clearChatApiPortfoliosPortfolioIdChatDelete(portfolioId, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearChatApiPortfoliosPortfolioIdChatDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearChatApiPortfoliosPortfolioIdChatDelete>>
+>;
+
+export type ClearChatApiPortfoliosPortfolioIdChatDeleteMutationError = HTTPValidationError;
+
+/**
+ * @summary Clear Chat
+ */
+export const useClearChatApiPortfoliosPortfolioIdChatDelete = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearChatApiPortfoliosPortfolioIdChatDelete>>,
+      TError,
+      { portfolioId: number },
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearChatApiPortfoliosPortfolioIdChatDelete>>,
+  TError,
+  { portfolioId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearChatApiPortfoliosPortfolioIdChatDeleteMutationOptions(options),
+    queryClient
+  );
+};
+
+/**
+ * @summary Audit Log
+ */
+export type auditLogApiPortfoliosPortfolioIdAuditGetResponse200 = {
+  data: AuditEntry[];
+  status: 200;
+};
+
+export type auditLogApiPortfoliosPortfolioIdAuditGetResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type auditLogApiPortfoliosPortfolioIdAuditGetResponseSuccess =
+  auditLogApiPortfoliosPortfolioIdAuditGetResponse200 & {
+    headers: Headers;
+  };
+export type auditLogApiPortfoliosPortfolioIdAuditGetResponseError =
+  auditLogApiPortfoliosPortfolioIdAuditGetResponse422 & {
+    headers: Headers;
+  };
+
+export type auditLogApiPortfoliosPortfolioIdAuditGetResponse =
+  | auditLogApiPortfoliosPortfolioIdAuditGetResponseSuccess
+  | auditLogApiPortfoliosPortfolioIdAuditGetResponseError;
+
+export const getAuditLogApiPortfoliosPortfolioIdAuditGetUrl = (portfolioId: number) => {
+  return `/api/portfolios/${portfolioId}/audit`;
+};
+
+export const auditLogApiPortfoliosPortfolioIdAuditGet = async (
+  portfolioId: number,
+  options?: RequestInit
+): Promise<auditLogApiPortfoliosPortfolioIdAuditGetResponse> => {
+  const res = await fetch(getAuditLogApiPortfoliosPortfolioIdAuditGetUrl(portfolioId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: auditLogApiPortfoliosPortfolioIdAuditGetResponse["data"] = body
+    ? JSON.parse(body)
+    : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as auditLogApiPortfoliosPortfolioIdAuditGetResponse;
+};
+
+export const getAuditLogApiPortfoliosPortfolioIdAuditGetInfiniteQueryKey = (
+  portfolioId: number
+) => {
+  return ["infinite", `/api/portfolios/${portfolioId}/audit`] as const;
+};
+
+export const getAuditLogApiPortfoliosPortfolioIdAuditGetQueryKey = (portfolioId: number) => {
+  return [`/api/portfolios/${portfolioId}/audit`] as const;
+};
+
+export const getAuditLogApiPortfoliosPortfolioIdAuditGetInfiniteQueryOptions = <
+  TData = InfiniteData<Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getAuditLogApiPortfoliosPortfolioIdAuditGetInfiniteQueryKey(portfolioId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+  > = ({ signal }) =>
+    auditLogApiPortfoliosPortfolioIdAuditGet(portfolioId, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!portfolioId, ...queryOptions } as UseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AuditLogApiPortfoliosPortfolioIdAuditGetInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+>;
+export type AuditLogApiPortfoliosPortfolioIdAuditGetInfiniteQueryError = HTTPValidationError;
+
+export function useAuditLogApiPortfoliosPortfolioIdAuditGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options: {
+    query: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+          TError,
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAuditLogApiPortfoliosPortfolioIdAuditGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+          TError,
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAuditLogApiPortfoliosPortfolioIdAuditGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Audit Log
+ */
+
+export function useAuditLogApiPortfoliosPortfolioIdAuditGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAuditLogApiPortfoliosPortfolioIdAuditGetInfiniteQueryOptions(
+    portfolioId,
+    options
+  );
+
+  const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getAuditLogApiPortfoliosPortfolioIdAuditGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAuditLogApiPortfoliosPortfolioIdAuditGetQueryKey(portfolioId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+  > = ({ signal }) =>
+    auditLogApiPortfoliosPortfolioIdAuditGet(portfolioId, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!portfolioId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AuditLogApiPortfoliosPortfolioIdAuditGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+>;
+export type AuditLogApiPortfoliosPortfolioIdAuditGetQueryError = HTTPValidationError;
+
+export function useAuditLogApiPortfoliosPortfolioIdAuditGet<
+  TData = Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+          TError,
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAuditLogApiPortfoliosPortfolioIdAuditGet<
+  TData = Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+          TError,
+          Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAuditLogApiPortfoliosPortfolioIdAuditGet<
+  TData = Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Audit Log
+ */
+
+export function useAuditLogApiPortfoliosPortfolioIdAuditGet<
+  TData = Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+  TError = HTTPValidationError,
+>(
+  portfolioId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof auditLogApiPortfoliosPortfolioIdAuditGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getAuditLogApiPortfoliosPortfolioIdAuditGetQueryOptions(
+    portfolioId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Copilot Info
+ */
+export type copilotInfoApiCopilotInfoGetResponse200 = {
+  data: CopilotInfo;
+  status: 200;
+};
+
+export type copilotInfoApiCopilotInfoGetResponseSuccess =
+  copilotInfoApiCopilotInfoGetResponse200 & {
+    headers: Headers;
+  };
+export type copilotInfoApiCopilotInfoGetResponse = copilotInfoApiCopilotInfoGetResponseSuccess;
+
+export const getCopilotInfoApiCopilotInfoGetUrl = () => {
+  return `/api/copilot/info`;
+};
+
+export const copilotInfoApiCopilotInfoGet = async (
+  options?: RequestInit
+): Promise<copilotInfoApiCopilotInfoGetResponse> => {
+  const res = await fetch(getCopilotInfoApiCopilotInfoGetUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: copilotInfoApiCopilotInfoGetResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as copilotInfoApiCopilotInfoGetResponse;
+};
+
+export const getCopilotInfoApiCopilotInfoGetInfiniteQueryKey = () => {
+  return ["infinite", `/api/copilot/info`] as const;
+};
+
+export const getCopilotInfoApiCopilotInfoGetQueryKey = () => {
+  return [`/api/copilot/info`] as const;
+};
+
+export const getCopilotInfoApiCopilotInfoGetInfiniteQueryOptions = <
+  TData = InfiniteData<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseInfiniteQueryOptions<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>, TError, TData>
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getCopilotInfoApiCopilotInfoGetInfiniteQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>> = ({
+    signal,
+  }) => copilotInfoApiCopilotInfoGet({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CopilotInfoApiCopilotInfoGetInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>
+>;
+export type CopilotInfoApiCopilotInfoGetInfiniteQueryError = unknown;
+
+export function useCopilotInfoApiCopilotInfoGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+          TError,
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCopilotInfoApiCopilotInfoGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+          TError,
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCopilotInfoApiCopilotInfoGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Copilot Info
+ */
+
+export function useCopilotInfoApiCopilotInfoGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCopilotInfoApiCopilotInfoGetInfiniteQueryOptions(options);
+
+  const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCopilotInfoApiCopilotInfoGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>, TError, TData>
+  >;
+  fetch?: RequestInit;
+}) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getCopilotInfoApiCopilotInfoGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>> = ({
+    signal,
+  }) => copilotInfoApiCopilotInfoGet({ signal, ...fetchOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CopilotInfoApiCopilotInfoGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>
+>;
+export type CopilotInfoApiCopilotInfoGetQueryError = unknown;
+
+export function useCopilotInfoApiCopilotInfoGet<
+  TData = Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+          TError,
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCopilotInfoApiCopilotInfoGet<
+  TData = Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+          TError,
+          Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCopilotInfoApiCopilotInfoGet<
+  TData = Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Copilot Info
+ */
+
+export function useCopilotInfoApiCopilotInfoGet<
+  TData = Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof copilotInfoApiCopilotInfoGet>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCopilotInfoApiCopilotInfoGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

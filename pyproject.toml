@@ -67,6 +67,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Dev tooling scripts: print() is the user interface
 "devops/*.py" = ["T201"]
+# Test fakes implement Protocol signatures whose params they don't consume;
+# fixtures are often requested for their seeding side effect alone
+"projects/backend/tests/*.py" = ["ARG001", "ARG002"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 # Ban parent-relative imports (from ..x). Same-directory relative imports (from .x) are allowed.

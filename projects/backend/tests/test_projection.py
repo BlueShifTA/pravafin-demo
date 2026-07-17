@@ -1,6 +1,7 @@
 """Projection math (unit, golden values pin the formula)."""
 
 import pytest
+
 from coresat.services.projection import project
 
 # FV = C·(1+r)^n + A·((1+r)^n - 1)/r, A = annual contribution

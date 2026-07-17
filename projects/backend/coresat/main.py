@@ -13,6 +13,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from coresat.api.analysis import router as analysis_router
+from coresat.api.chat import info_router as copilot_info_router
+from coresat.api.chat import router as chat_router
 from coresat.api.compare import router as compare_router
 from coresat.api.example import router as example_router
 from coresat.api.health import router as health_router
@@ -21,6 +23,8 @@ from coresat.api.market import router as market_router
 from coresat.api.portfolios import router as portfolios_router
 from coresat.core.config import get_settings
 from coresat.db.session import create_engine, to_async_url
+from coresat.services.agent.llm import ChatModelAgentLLM
+from coresat.services.agent.service import CopilotService
 from coresat.services.analysis import AnalysisService
 from coresat.services.analytics import AnalyticsService
 from coresat.services.comparison import ComparisonService
@@ -116,6 +120,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.analysis_service = AnalysisService(
         engine=app.state.app_engine, llm=llm, analytics=app.state.analytics_service
     )
+    app.state.copilot_service = CopilotService(
+        engine=app.state.app_engine,
+        llm=ChatModelAgentLLM(llm),
+        summaries=app.state.analytics_service,
+        model_name=settings.ollama_model,
+    )
 
     log.info("%s started", settings.app_name)
     yield
@@ -170,6 +180,8 @@ def create_app() -> FastAPI:
     app.include_router(market_router, prefix=settings.api_prefix)
     app.include_router(compare_router, prefix=settings.api_prefix)
     app.include_router(analysis_router, prefix=settings.api_prefix)
+    app.include_router(chat_router, prefix=settings.api_prefix)
+    app.include_router(copilot_info_router, prefix=settings.api_prefix)
     return app
 
 

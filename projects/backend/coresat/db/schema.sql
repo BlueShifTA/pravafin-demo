@@ -138,6 +138,21 @@ CREATE TABLE IF NOT EXISTS llm_audit_log (
     created_at    timestamptz NOT NULL DEFAULT now()
 );
 
+-- Copilot graph runs audit per node; single-call features leave these NULL.
+ALTER TABLE llm_audit_log ADD COLUMN IF NOT EXISTS graph_run_id text;
+ALTER TABLE llm_audit_log ADD COLUMN IF NOT EXISTS node text;
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id            serial PRIMARY KEY,
+    portfolio_id  integer NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+    role          text NOT NULL CHECK (role IN ('user', 'assistant')),
+    content       text NOT NULL,
+    citations     jsonb NOT NULL DEFAULT '[]'::jsonb,
+    tokens_in     integer NOT NULL DEFAULT 0,
+    tokens_out    integer NOT NULL DEFAULT 0,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+
 -- ── ingestion ops ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS ingest_runs (
@@ -172,6 +187,7 @@ ALTER TABLE portfolios    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sleeves       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE positions     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE llm_audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
 -- portfolios: creation goes through create_portfolio() (SECURITY DEFINER)
 -- because INSERT..RETURNING is subject to SELECT policies — the fresh row is
@@ -204,6 +220,12 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_policies
                  WHERE tablename = 'llm_audit_log' AND policyname = 'per_portfolio') THEN
     CREATE POLICY per_portfolio ON llm_audit_log
+      USING      (portfolio_id = current_setting('app.portfolio_id', true)::int)
+      WITH CHECK (portfolio_id = current_setting('app.portfolio_id', true)::int);
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_policies
+                 WHERE tablename = 'chat_messages' AND policyname = 'per_portfolio') THEN
+    CREATE POLICY per_portfolio ON chat_messages
       USING      (portfolio_id = current_setting('app.portfolio_id', true)::int)
       WITH CHECK (portfolio_id = current_setting('app.portfolio_id', true)::int);
   END IF;
@@ -240,6 +262,7 @@ GRANT SELECT ON instruments, prices_daily, funds, fund_holdings, fundamentals,
     financials_yearly TO coresat_app;
 GRANT SELECT, INSERT, UPDATE, DELETE
     ON portfolios, sleeves, positions, llm_audit_log TO coresat_app;
+GRANT SELECT, INSERT, DELETE ON chat_messages TO coresat_app;
 GRANT SELECT, INSERT ON ingest_runs, ingest_quarantine TO coresat_app;
 GRANT UPDATE ON ingest_runs TO coresat_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO coresat_app;

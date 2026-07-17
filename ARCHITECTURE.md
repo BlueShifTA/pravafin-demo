@@ -102,6 +102,11 @@ sources (CSV / REST / PDF / JSON)
   Headline score = mean of criterion scores.
 
 ### Agent (problem 2: hallucination control) — LangGraph, orchestrator-centric (armlab.io diagram style)
+
+> **Status:** shipped in `services/agent/` (graph, tools, SSE chat, per-node audit). The
+> RAG pipeline branch is not wired yet — documents are not ingested (build order §8 item 6);
+> the planner's tool set is `run_sql` / `get_projection` / `gap` until then. The
+> orchestrator node is named `planner` in code.
 ```
 question → scope_guard ──in scope──→ orchestrator ──docs──→ RAG pipeline: embed → hybrid search → rerank
               │off-topic                  │  │data──→ run_sql / get_projection
@@ -160,9 +165,11 @@ GET  /api/portfolios/{id}/summary       situation + projection + evaluation
 GET  /api/funds?compare=IWDA,VWRL       fund comparison
 POST /api/ingest/{adapter}              run adapter (file upload or trigger)
 GET  /api/ingest/quarantine             quarantine viewer
-POST /api/portfolios/{id}/chat          SSE stream: plan → evidence → answer + citations
-GET  /api/portfolios/{id}/chat          history (RLS-scoped)
-GET  /api/portfolios/{id}/audit         token/cost log
+POST   /api/portfolios/{id}/chat        SSE stream: plan → evidence → answer + citations
+GET    /api/portfolios/{id}/chat        history (RLS-scoped)
+DELETE /api/portfolios/{id}/chat        clear chat context (RLS-scoped)
+GET    /api/portfolios/{id}/audit       token/cost log
+GET    /api/copilot/info                configured model name
 ```
 Middleware: resolve portfolio_id → `SET app.portfolio_id` on the request's DB connection.
 

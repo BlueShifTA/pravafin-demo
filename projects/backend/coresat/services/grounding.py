@@ -77,7 +77,7 @@ async def fetch_facts(engine: AsyncEngine, tickers: list[str]) -> list[dict[str,
     return [dict(row) for row in rows]
 
 
-def _six_significant_figures(value: Decimal) -> Decimal:
+def six_significant_figures(value: Decimal) -> Decimal:
     # raw DOUBLE PRECISION values arrive as 28-digit Decimals that bloat the
     # prompt and get misquoted by the model, tripping the fabrication guard
     if value == 0:
@@ -94,7 +94,7 @@ def _render_value(column: str, value: object) -> tuple[str, Decimal]:
         scale, suffix = (9, "B") if abs(decimal_value) >= 1_000_000_000 else (6, "M")
         mantissa = (decimal_value.scaleb(-scale)).quantize(Decimal("0.001")).normalize()
         return f"{format(mantissa, 'f')}{suffix}", mantissa
-    rounded = _six_significant_figures(decimal_value)
+    rounded = six_significant_figures(decimal_value)
     return format(rounded, "f"), rounded
 
 
@@ -116,6 +116,14 @@ def render_facts(rows: list[dict[str, object]]) -> tuple[str, set[Decimal]]:
                 lines.append(f"  {column}: {rendered}")
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks), numbers
+
+
+def extract_numbers(source_text: str) -> set[Decimal]:
+    """All numbers in a text, normalised the way numbers_grounded compares them."""
+    numbers: set[Decimal] = set()
+    for number_text, _suffix in _NUMBER_PATTERN.findall(source_text):
+        numbers.add(Decimal(number_text.replace(",", "")).normalize())
+    return numbers
 
 
 def numbers_grounded(prose: str, fact_numbers: set[Decimal]) -> bool:
