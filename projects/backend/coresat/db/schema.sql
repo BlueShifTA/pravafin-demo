@@ -84,6 +84,19 @@ CREATE TABLE IF NOT EXISTS fundamentals (
     shares         numeric
 );
 
+CREATE TABLE IF NOT EXISTS financials_yearly (
+    instrument_id  integer NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    fy             integer NOT NULL,
+    revenue        numeric,
+    net_income     numeric,
+    net_margin     numeric,
+    ocf            numeric,
+    capex          numeric,
+    fcf            numeric,
+    shares         numeric,
+    PRIMARY KEY (instrument_id, fy)
+);
+
 -- ── portfolio tables (RLS-protected) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS portfolios (
@@ -223,7 +236,8 @@ GRANT EXECUTE ON FUNCTION list_portfolios() TO coresat_app;
 -- ── grants ──────────────────────────────────────────────────────
 
 GRANT USAGE ON SCHEMA public TO coresat_app;
-GRANT SELECT ON instruments, prices_daily, funds, fund_holdings, fundamentals TO coresat_app;
+GRANT SELECT ON instruments, prices_daily, funds, fund_holdings, fundamentals,
+    financials_yearly TO coresat_app;
 GRANT SELECT, INSERT, UPDATE, DELETE
     ON portfolios, sleeves, positions, llm_audit_log TO coresat_app;
 GRANT SELECT, INSERT ON ingest_runs, ingest_quarantine TO coresat_app;

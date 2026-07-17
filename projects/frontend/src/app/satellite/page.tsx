@@ -24,10 +24,12 @@ import { PageShell } from "@/components/layout/PageShell";
 import { Spinner } from "@/components/ui/feedback/Spinner";
 import { CandleChart } from "@/components/market/CandleChart";
 import { CompareDialog } from "@/components/market/CompareDialog";
+import { FinancialsPanel } from "@/components/market/FinancialsPanel";
 import { StockAnalysisDialog } from "@/components/market/StockAnalysisDialog";
 import { formatNumber, formatPercent } from "@/lib/format";
 import {
   useCandlesApiMarketCandlesTickerGet,
+  useFinancialsApiMarketFinancialsTickerGet,
   useIndicatorsApiMarketIndicatorsTickerGet,
   useScreenerApiMarketScreenerGet,
 } from "@/lib/generated/endpoints";
@@ -66,6 +68,10 @@ export default function SatellitePage() {
     { query: { enabled: chartTicker !== null } }
   );
   const indicators = indicatorsQuery.data?.status === 200 ? indicatorsQuery.data.data : undefined;
+  const financialsQuery = useFinancialsApiMarketFinancialsTickerGet(chartTicker ?? "", {
+    query: { enabled: chartTicker !== null },
+  });
+  const financials = financialsQuery.data?.status === 200 ? financialsQuery.data.data : null;
 
   const onSelection = (model: GridRowSelectionModel) => {
     const ids = [...(model.ids ?? [])].map(String);
@@ -215,6 +221,23 @@ export default function SatellitePage() {
                 {chartTicker} — daily candles (1y)
               </Typography>
               <CandleChart bars={bars} indicators={indicators} />
+            </CardContent>
+          </Card>
+        )}
+        {chartTicker && financialsQuery.isLoading && (
+          <Card variant="outlined">
+            <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+              <Spinner size={32} />
+            </CardContent>
+          </Card>
+        )}
+        {chartTicker && financials && (
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+                {chartTicker} — financials
+              </Typography>
+              <FinancialsPanel series={financials} />
             </CardContent>
           </Card>
         )}

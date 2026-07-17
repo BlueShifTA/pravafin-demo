@@ -14,6 +14,7 @@ from coresat.domain.portfolio import (
     SleeveDrift,
     TerDrag,
     TerDragPoint,
+    YearlyFinancials,
 )
 from coresat.services.projection import project
 
@@ -178,6 +179,36 @@ class AnalyticsService:
                 {"ticker": ticker, "days": days},
             )
             return [CandleBar(**row) for row in rows.mappings()]
+
+    async def yearly_financials(self, ticker: str) -> list[YearlyFinancials]:
+        async with self._engine.connect() as conn:
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT fy, revenue, net_income, net_margin, ocf, capex, fcf, shares "
+                        "FROM financials_yearly f JOIN instruments i ON i.id = f.instrument_id "
+                        "WHERE i.ticker = :ticker ORDER BY fy"
+                    ),
+                    {"ticker": ticker},
+                )
+            ).mappings()
+            return [
+                YearlyFinancials(
+                    fy=row["fy"],
+                    revenue=row["revenue"],
+                    net_income=row["net_income"],
+                    net_margin=row["net_margin"],
+                    ocf=row["ocf"],
+                    capex=row["capex"],
+                    fcf=row["fcf"],
+                    cf_per_share=(
+                        float(row["ocf"]) / float(row["shares"])
+                        if row["ocf"] is not None and row["shares"]
+                        else None
+                    ),
+                )
+                for row in rows
+            ]
 
     async def screener(self, limit: int) -> list[ScreenerRow]:
         async with self._engine.connect() as conn:

@@ -73,6 +73,7 @@ async def seed(data_dir: pathlib.Path) -> None:
         for name, adapter, payload in (
             ("universe_v2.csv", "universe_csv", None),
             ("fundamentals_stocks.csv", "fundamentals_csv", fundamentals_payload or None),
+            ("financials_10y.csv", "financials_yearly_csv", None),
             ("fundamentals_etfs.csv", "funds_csv", None),
         ):
             path = data_dir / name

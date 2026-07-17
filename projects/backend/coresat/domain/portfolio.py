@@ -115,6 +115,17 @@ class FundRow(BaseModel):
     cagr_10y: float | None
 
 
+class YearlyFinancials(BaseModel):
+    fy: int
+    revenue: float | None
+    net_income: float | None
+    net_margin: float | None
+    ocf: float | None
+    capex: float | None
+    fcf: float | None
+    cf_per_share: float | None
+
+
 class TerDragPoint(BaseModel):
     year: int
     gross_value: float

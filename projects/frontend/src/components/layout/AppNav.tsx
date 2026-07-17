@@ -157,15 +157,8 @@ export function AppNav({ children }: PropsWithChildren) {
           </Typography>
         </Box>
       </Drawer>
-      <Box
-        component="section"
-        sx={{
-          flexGrow: 1,
-          minWidth: 0,
-          ml: { xs: 0, md: desktopNavOpen ? `${DRAWER_WIDTH}px` : 0 },
-          mt: 8,
-        }}
-      >
+      {/* no margin-left: the drawer's root box already reserves its width in this flex row */}
+      <Box component="section" sx={{ flexGrow: 1, minWidth: 0, mt: 8 }}>
         {children}
       </Box>
     </Box>

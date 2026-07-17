@@ -5,7 +5,14 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.params import Query
 
-from coresat.domain.portfolio import CandleBar, FundRow, IndicatorPoint, ScreenerRow, TerDrag
+from coresat.domain.portfolio import (
+    CandleBar,
+    FundRow,
+    IndicatorPoint,
+    ScreenerRow,
+    TerDrag,
+    YearlyFinancials,
+)
 from coresat.services.analytics import AnalyticsService
 from coresat.services.indicators import indicator_points
 
@@ -43,6 +50,14 @@ async def indicators(
     if days is not None:
         points = points[-days:]
     return points
+
+
+@router.get("/financials/{ticker}")
+async def financials(ticker: str, request: Request) -> list[YearlyFinancials]:
+    series = await _analytics(request).yearly_financials(ticker)
+    if not series:
+        raise HTTPException(status_code=404, detail=f"no yearly financials for {ticker}")
+    return series
 
 
 @router.get("/screener")

@@ -52,6 +52,7 @@ import type {
   ScreenerRow,
   TerDrag,
   TerDragApiMarketTerDragGetParams,
+  YearlyFinancials,
 } from "./models";
 
 /**
@@ -2790,6 +2791,335 @@ export function useIndicatorsApiMarketIndicatorsTickerGet<
     params,
     options
   );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Financials
+ */
+export type financialsApiMarketFinancialsTickerGetResponse200 = {
+  data: YearlyFinancials[];
+  status: 200;
+};
+
+export type financialsApiMarketFinancialsTickerGetResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type financialsApiMarketFinancialsTickerGetResponseSuccess =
+  financialsApiMarketFinancialsTickerGetResponse200 & {
+    headers: Headers;
+  };
+export type financialsApiMarketFinancialsTickerGetResponseError =
+  financialsApiMarketFinancialsTickerGetResponse422 & {
+    headers: Headers;
+  };
+
+export type financialsApiMarketFinancialsTickerGetResponse =
+  | financialsApiMarketFinancialsTickerGetResponseSuccess
+  | financialsApiMarketFinancialsTickerGetResponseError;
+
+export const getFinancialsApiMarketFinancialsTickerGetUrl = (ticker: string) => {
+  return `/api/market/financials/${ticker}`;
+};
+
+export const financialsApiMarketFinancialsTickerGet = async (
+  ticker: string,
+  options?: RequestInit
+): Promise<financialsApiMarketFinancialsTickerGetResponse> => {
+  const res = await fetch(getFinancialsApiMarketFinancialsTickerGetUrl(ticker), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: financialsApiMarketFinancialsTickerGetResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as financialsApiMarketFinancialsTickerGetResponse;
+};
+
+export const getFinancialsApiMarketFinancialsTickerGetInfiniteQueryKey = (ticker: string) => {
+  return ["infinite", `/api/market/financials/${ticker}`] as const;
+};
+
+export const getFinancialsApiMarketFinancialsTickerGetQueryKey = (ticker: string) => {
+  return [`/api/market/financials/${ticker}`] as const;
+};
+
+export const getFinancialsApiMarketFinancialsTickerGetInfiniteQueryOptions = <
+  TData = InfiniteData<Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getFinancialsApiMarketFinancialsTickerGetInfiniteQueryKey(ticker);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+  > = ({ signal }) => financialsApiMarketFinancialsTickerGet(ticker, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!ticker, ...queryOptions } as UseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type FinancialsApiMarketFinancialsTickerGetInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+>;
+export type FinancialsApiMarketFinancialsTickerGetInfiniteQueryError = HTTPValidationError;
+
+export function useFinancialsApiMarketFinancialsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options: {
+    query: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFinancialsApiMarketFinancialsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFinancialsApiMarketFinancialsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Financials
+ */
+
+export function useFinancialsApiMarketFinancialsTickerGetInfinite<
+  TData = InfiniteData<Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getFinancialsApiMarketFinancialsTickerGetInfiniteQueryOptions(
+    ticker,
+    options
+  );
+
+  const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getFinancialsApiMarketFinancialsTickerGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, fetch: fetchOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getFinancialsApiMarketFinancialsTickerGetQueryKey(ticker);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+  > = ({ signal }) => financialsApiMarketFinancialsTickerGet(ticker, { signal, ...fetchOptions });
+
+  return { queryKey, queryFn, enabled: !!ticker, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type FinancialsApiMarketFinancialsTickerGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+>;
+export type FinancialsApiMarketFinancialsTickerGetQueryError = HTTPValidationError;
+
+export function useFinancialsApiMarketFinancialsTickerGet<
+  TData = Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFinancialsApiMarketFinancialsTickerGet<
+  TData = Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+          TError,
+          Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>
+        >,
+        "initialData"
+      >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFinancialsApiMarketFinancialsTickerGet<
+  TData = Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Financials
+ */
+
+export function useFinancialsApiMarketFinancialsTickerGet<
+  TData = Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+  TError = HTTPValidationError,
+>(
+  ticker: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof financialsApiMarketFinancialsTickerGet>>,
+        TError,
+        TData
+      >
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getFinancialsApiMarketFinancialsTickerGetQueryOptions(ticker, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

@@ -37,6 +37,18 @@ class HoldingRecord(BaseModel):
     weight: float | None = None
 
 
+class YearlyFinancialsRecord(BaseModel):
+    ticker: str = Field(min_length=1)
+    fy: int
+    revenue: float | None = None
+    net_income: float | None = None
+    net_margin: float | None = None
+    ocf: float | None = None
+    capex: float | None = None
+    fcf: float | None = None
+    shares: float | None = None
+
+
 class FundamentalsRecord(BaseModel):
     ticker: str = Field(min_length=1)
     name: str | None = None

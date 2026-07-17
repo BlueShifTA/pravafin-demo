@@ -43,3 +43,4 @@ export * from "./terDragPoint";
 export * from "./tickerAssessment";
 export * from "./validationError";
 export * from "./validationErrorCtx";
+export * from "./yearlyFinancials";

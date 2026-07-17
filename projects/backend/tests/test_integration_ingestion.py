@@ -3,15 +3,18 @@
 Auto-skips when Postgres is down (`just stack-up` to run).
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 
 import asyncpg
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine
+from coresat.main import app
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
@@ -24,6 +27,12 @@ TSTN,stock,semiconductor,Semiconductors
 
 FUNDAMENTALS_CSV = b"""ticker,name,pe_trailing,revenue
 TSTN,Test Semi Corp,12.5,1000000
+"""
+
+FINANCIALS_YEARLY_CSV = b"""ticker,fy,revenue,opex,net_income,net_margin,ocf,capex,fcf,shares
+TSTN,2023,1000000,,80000,0.08,150000,30000,120000,10000
+TSTN,2024,,,,,200000,,,10000
+TSTN,,missing-fy-row,,,,,,,
 """
 
 
@@ -107,6 +116,63 @@ async def test_fundamentals_backfill_stub_instrument_names(
             await conn.execute(text("SELECT name FROM instruments WHERE ticker = 'TSTN'"))
         ).scalar_one()
     assert name == "Test Semi Corp"
+
+
+@pytest.mark.usefixtures("clean_db")
+async def test_yearly_financials_load_with_missing_values_as_null(
+    pipeline: IngestionPipeline,
+) -> None:
+    report = await pipeline.run("financials_yearly_csv", FINANCIALS_YEARLY_CSV)
+    assert report.rows_ok == 2
+    assert report.rows_quarantined == 1  # row without fiscal year
+    async with pipeline.engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT fy, revenue, ocf, capex FROM financials_yearly f "
+                    "JOIN instruments i ON i.id = f.instrument_id "
+                    "WHERE i.ticker = 'TSTN' ORDER BY fy"
+                )
+            )
+        ).all()
+    assert [row.fy for row in rows] == [2023, 2024]
+    assert float(rows[0].revenue) == 1_000_000
+    assert rows[1].revenue is None  # missing -> NULL
+    assert float(rows[1].ocf) == 200_000
+    assert rows[1].capex is None
+
+
+def test_financials_endpoint_returns_series_with_gaps() -> None:
+    payload = b"""ticker,fy,revenue,net_income,net_margin,ocf,capex,fcf,shares
+TSTQ,2023,1000000,80000,0.08,150000,30000,120000,10000
+TSTQ,2024,,,,200000,,,10000
+"""
+
+    async def _seed() -> None:
+        admin = await _admin_or_skip()
+        await apply_schema(ADMIN_DSN)
+        await admin.execute("TRUNCATE ingest_quarantine, ingest_runs RESTART IDENTITY CASCADE")
+        await admin.execute("DELETE FROM instruments WHERE ticker = 'TSTQ'")
+        await admin.close()
+        engine = create_engine(ADMIN_SQLA_URL)
+        try:
+            pipeline = IngestionPipeline(engine=engine, registry=build_registry())
+            await pipeline.run("financials_yearly_csv", payload)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_seed())
+    with TestClient(app) as client:
+        response = client.get("/api/market/financials/TSTQ")
+        assert response.status_code == 200, response.text
+        series = response.json()
+        assert [point["fy"] for point in series] == [2023, 2024]
+        assert series[0]["revenue"] == 1_000_000
+        assert series[0]["cf_per_share"] == 15.0  # ocf / shares
+        assert series[1]["revenue"] is None
+        assert series[1]["cf_per_share"] == 20.0
+
+        assert client.get("/api/market/financials/NOPE").status_code == 404
 
 
 @pytest.mark.usefixtures("clean_db")

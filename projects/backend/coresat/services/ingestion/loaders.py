@@ -13,6 +13,7 @@ from coresat.domain.ingestion import (
     HoldingRecord,
     InstrumentRecord,
     PriceRecord,
+    YearlyFinancialsRecord,
 )
 
 _CHUNK = 5000
@@ -93,6 +94,29 @@ async def load_holdings(conn: AsyncConnection, records: Sequence[BaseModel]) -> 
         [
             {"fund_id": fund_id, **record.model_dump(exclude={"fund_ticker", "fund_name"})}
             for record in holdings
+        ],
+    )
+
+
+_YEARLY_COLUMNS = "revenue, net_income, net_margin, ocf, capex, fcf, shares"
+_YEARLY_VALUES = ", ".join(f":{column.strip()}" for column in _YEARLY_COLUMNS.split(","))
+_YEARLY_UPDATES = ", ".join(
+    f"{column.strip()} = excluded.{column.strip()}" for column in _YEARLY_COLUMNS.split(",")
+)
+
+
+async def load_financials_yearly(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
+    financials = cast(Sequence[YearlyFinancialsRecord], records)
+    ids = await _ensure_instruments(conn, {record.ticker for record in financials})
+    await conn.execute(
+        text(
+            f"INSERT INTO financials_yearly (instrument_id, fy, {_YEARLY_COLUMNS}) "
+            f"VALUES (:instrument_id, :fy, {_YEARLY_VALUES}) "
+            f"ON CONFLICT (instrument_id, fy) DO UPDATE SET {_YEARLY_UPDATES}"
+        ),
+        [
+            {"instrument_id": ids[record.ticker], **record.model_dump(exclude={"ticker"})}
+            for record in financials
         ],
     )
 

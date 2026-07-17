@@ -14,6 +14,7 @@ from coresat.domain.ingestion import (
     InstrumentRecord,
     PriceRecord,
     RejectedRow,
+    YearlyFinancialsRecord,
 )
 
 ParseResult = tuple[Sequence[BaseModel], list[RejectedRow]]
@@ -197,6 +198,40 @@ class FundamentalsCsvAdapter:
                     FundamentalsRecord(
                         ticker=row.get("ticker") or "",
                         name=row.get("name"),
+                        **numbers,  # type: ignore[arg-type]
+                    )
+                )
+            except ValidationError as error:
+                rejects.append(RejectedRow(row=row, reason=_reason(error)))
+        return valid, rejects
+
+
+_YEARLY_FINANCIALS_FIELDS = (
+    "revenue",
+    "net_income",
+    "net_margin",
+    "ocf",
+    "capex",
+    "fcf",
+    "shares",
+)
+
+
+class FinancialsYearlyCsvAdapter:
+    name = "financials_yearly_csv"
+    version = "1"
+
+    def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
+        valid: list[BaseModel] = []
+        rejects: list[RejectedRow] = []
+        for raw in csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))):
+            row = _clean(raw)
+            numbers = {field: _number(row.get(field)) for field in _YEARLY_FINANCIALS_FIELDS}
+            try:
+                valid.append(
+                    YearlyFinancialsRecord(
+                        ticker=row.get("ticker") or "",
+                        fy=row.get("fy"),  # type: ignore[arg-type]
                         **numbers,  # type: ignore[arg-type]
                     )
                 )

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from coresat.domain.ingestion import IngestReport
 from coresat.services.ingestion.adapters import (
     DailyPricesCsvAdapter,
+    FinancialsYearlyCsvAdapter,
     FundamentalsCsvAdapter,
     FundsCsvAdapter,
     ISharesHoldingsCsvAdapter,
@@ -18,6 +19,7 @@ from coresat.services.ingestion.adapters import (
 )
 from coresat.services.ingestion.loaders import (
     Loader,
+    load_financials_yearly,
     load_fundamentals,
     load_funds,
     load_holdings,
@@ -38,6 +40,7 @@ def build_registry() -> dict[str, AdapterEntry]:
         AdapterEntry(DailyPricesCsvAdapter(), load_prices),
         AdapterEntry(ISharesHoldingsCsvAdapter(), load_holdings),
         AdapterEntry(FundamentalsCsvAdapter(), load_fundamentals),
+        AdapterEntry(FinancialsYearlyCsvAdapter(), load_financials_yearly),
         AdapterEntry(FundsCsvAdapter(), load_funds),
     )
     return {entry.adapter.name: entry for entry in entries}
