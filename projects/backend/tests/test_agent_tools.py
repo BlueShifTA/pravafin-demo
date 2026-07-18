@@ -13,7 +13,32 @@ from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine
 from coresat.domain.agent import Step, ToolName
 from coresat.domain.portfolio import PortfolioHealth, PortfolioSummary, ProjectionOut
-from coresat.services.agent.tools import GetProjectionTool, RunSqlTool
+from coresat.services.agent.tools import GetProjectionTool, RunSqlTool, _prepare_sql
+
+
+def test_prepare_sql_keeps_only_the_first_statement() -> None:
+    # the exact drift the runtime log caught: two statements -> asyncpg rejects
+    sql, error = _prepare_sql("SELECT ticker FROM funds; SELECT name FROM instruments")
+    assert error is None
+    assert sql == "SELECT ticker FROM funds"
+
+
+def test_prepare_sql_strips_markdown_fences() -> None:
+    sql, error = _prepare_sql("```sql\nSELECT ticker FROM funds\n```")
+    assert error is None
+    assert sql == "SELECT ticker FROM funds"
+
+
+def test_prepare_sql_rejects_placeholder_tokens() -> None:
+    sql, error = _prepare_sql("SELECT * FROM funds WHERE ticker = '<CORE_ETF_TICKER_1>'")
+    assert sql is None
+    assert error is not None and "placeholder" in error
+
+
+def test_prepare_sql_rejects_empty() -> None:
+    assert _prepare_sql(None)[0] is None
+    assert _prepare_sql("   ")[0] is None
+
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"

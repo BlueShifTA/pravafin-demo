@@ -7,6 +7,7 @@ deterministic analytics output; the LLM never computes a number.
 """
 
 import logging
+import re
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Protocol
@@ -26,6 +27,33 @@ log = logging.getLogger(__name__)
 
 _MAX_ROWS = 50
 _STATEMENT_TIMEOUT_MS = 5000
+
+
+# The planner LLM (esp. a small/cheap model) drifts in three deterministic ways
+# a DB round-trip should not have to catch: it wraps SQL in ```sql fences, emits
+# two statements separated by ';' (asyncpg rejects multiple commands in one
+# prepared statement), and leaves placeholder tokens like '<TICKER>'. Clean the
+# first two and reject the third with a clear message the retry loop feeds back.
+_PLACEHOLDER_RE = re.compile(r"<[A-Za-z0-9_ ]+>")
+
+
+def _prepare_sql(raw: str | None) -> tuple[str | None, str | None]:
+    """Return (clean_single_statement_sql, None) or (None, error message)."""
+    if raw is None or not raw.strip():
+        return None, "step carries no SQL"
+    sql = raw.strip()
+    if sql.startswith("```"):
+        sql = sql.strip("`").strip()
+        if sql[:3].lower() == "sql":
+            sql = sql[3:].strip()
+    # keep only the first statement — a trailing ';' or a second SELECT would
+    # otherwise fail as "cannot insert multiple commands into a prepared statement"
+    sql = sql.split(";", 1)[0].strip()
+    if not sql:
+        return None, "step carries no SQL"
+    if _PLACEHOLDER_RE.search(sql):
+        return None, "SQL still has placeholder tokens like '<TICKER>' — use real values"
+    return sql, None
 
 
 class Tool(Protocol):
@@ -62,21 +90,20 @@ class RunSqlTool:
         self._portfolio_id: int = portfolio_id
 
     async def run(self, step: Step) -> Evidence:
-        if step.sql is None or not step.sql.strip():
-            return Evidence(
-                step_id=step.id, source="run_sql", content="", error="step carries no SQL"
-            )
-        log.info("run_sql (portfolio %d): %s", self._portfolio_id, step.sql)
+        sql, error = _prepare_sql(step.sql)
+        if sql is None:
+            return Evidence(step_id=step.id, source="run_sql", content="", error=error)
+        log.info("run_sql (portfolio %d): %s", self._portfolio_id, sql)
         try:
             async with portfolio_scope(self._engine, self._portfolio_id) as conn:
                 await conn.execute(text("SET LOCAL transaction_read_only = on"))
                 await conn.execute(text(f"SET LOCAL statement_timeout = {_STATEMENT_TIMEOUT_MS}"))
-                result = await conn.execute(text(step.sql))
+                result = await conn.execute(text(sql))
                 rows = result.mappings().fetchmany(_MAX_ROWS)
                 truncated = result.fetchone() is not None
         except (DBAPIError, SQLAlchemyError) as exc:
             cause = getattr(exc, "orig", None) or exc
-            log.warning("run_sql failed: %s | sql=%s", cause, step.sql)
+            log.warning("run_sql failed: %s | sql=%s", cause, sql)
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )
@@ -98,21 +125,20 @@ class FactSqlTool:
         self._engine: AsyncEngine = engine
 
     async def run(self, step: Step) -> Evidence:
-        if step.sql is None or not step.sql.strip():
-            return Evidence(
-                step_id=step.id, source="run_sql", content="", error="step carries no SQL"
-            )
-        log.info("run_sql (facts): %s", step.sql)
+        sql, error = _prepare_sql(step.sql)
+        if sql is None:
+            return Evidence(step_id=step.id, source="run_sql", content="", error=error)
+        log.info("run_sql (facts): %s", sql)
         try:
             async with self._engine.connect() as conn, conn.begin():
                 await conn.execute(text("SET LOCAL transaction_read_only = on"))
                 await conn.execute(text(f"SET LOCAL statement_timeout = {_STATEMENT_TIMEOUT_MS}"))
-                result = await conn.execute(text(step.sql))
+                result = await conn.execute(text(sql))
                 rows = result.mappings().fetchmany(_MAX_ROWS)
                 truncated = result.fetchone() is not None
         except (DBAPIError, SQLAlchemyError) as exc:
             cause = getattr(exc, "orig", None) or exc
-            log.warning("run_sql failed: %s | sql=%s", cause, step.sql)
+            log.warning("run_sql failed: %s | sql=%s", cause, sql)
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )
