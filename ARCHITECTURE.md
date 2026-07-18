@@ -40,7 +40,7 @@ prices_daily(instrument_id, date, open, high, low, close, volume)   -- candles, 
 financials(instrument_id, fy, revenue, opex, net_income, net_margin, ocf, capex, fcf, ebit, nwc, ppe_net, ...)
 sentiment(index_name, date, value)                                   -- CNN F&G, crypto F&G, VIX
 magic_formula(instrument_id, fy, earnings_yield, roic, magic_rank, ...)
-doc_chunks(id, source_doc, instrument_id?, fund_id?, page, text, embedding vector(768))
+doc_chunks(id, source_doc, doc_type, instrument_id?, fund_id?, page, chunk_index, text, embedding vector(768), tsv, checksum)  -- UNIQUE(source_doc, chunk_index); HNSW + GIN(tsv) indexes
 
 -- portfolio-scoped (RLS on portfolio_id):
 portfolios(id, name, initial_capital, monthly_contribution, created_at)
@@ -104,9 +104,10 @@ sources (CSV / REST / PDF / JSON)
 ### Agent (problem 2: hallucination control) — LangGraph, orchestrator-centric (armlab.io diagram style)
 
 > **Status:** shipped in `services/agent/` (graph, tools, SSE chat, per-node audit). The
-> RAG pipeline branch is not wired yet — documents are not ingested (build order §8 item 6);
-> the planner's tool set is `run_sql` / `get_projection` / `gap` until then. The
-> orchestrator node is named `planner` in code.
+> RAG pipeline branch is now wired: PDFs ingest via the `pdf` adapter into `doc_chunks`
+> and both agents plan over a `rag_search` tool, so the planner's tool set is
+> `run_sql` / `get_projection` / `rag_search` / `gap`. An empty corpus yields a gap.
+> The orchestrator node is named `planner` in code.
 ```
 question → scope_guard ──in scope──→ orchestrator ──docs──→ RAG pipeline: embed → hybrid search → rerank
               │off-topic                  │  │data──→ run_sql / get_projection
@@ -117,7 +118,7 @@ question → scope_guard ──in scope──→ orchestrator ──docs──�
 ```
 - **scope_guard**: cheap classifier (tiny model) — intent + leak guard. Off-topic → canned refusal before any expensive call.
 - **orchestrator**: LLM router — decides docs / data / both, emits typed tool calls.
-- **RAG pipeline** (deterministic once triggered): embed (nomic-embed-text or text-embedding-3, 768-d) → hybrid search (pgvector cosine + tsvector BM25-ish, weights 0.7/0.3) → rerank (bge-reranker-v2-m3) → top-k chunks with page provenance.
+- **RAG pipeline** (deterministic once triggered, `services/agent/retrieval.py`): embed (nomic-embed-text, 768-d) → hybrid recall (pgvector cosine ∪ tsvector full-text, each probes a pool) → rerank (fastembed ONNX cross-encoder, no torch) → top-k chunks with page provenance. Ingestion (`pdf` adapter → per-page chunks → embed → `doc_chunks`) shares the same embedder so chunks and queries land in one space.
 - **Query data tools**: `run_sql` (read-only role, RLS-scoped connection) · `get_projection` (analytics service — LLM never computes numbers).
 - **synthesiser**: LLM writes answer with [n] citations from evidence.
 - **grounding_validator** (plain code): every numeric claim must appear in SQL rows / projections / chunks → fail injects errors → one re-plan → still failing → "cannot answer from data".
@@ -161,8 +162,8 @@ fetch fundamentals + magic_formula rows (deterministic SQL)
 ```
 POST /api/portfolios                    create (wizard submit)
 GET  /api/portfolios                    list
-GET  /api/portfolios/{id}/summary       situation + projection + evaluation
-GET  /api/funds?compare=IWDA,VWRL       fund comparison
+GET  /api/portfolios/{id}/summary       situation + projection + health radar
+GET  /api/market/funds[?compare=A,B]    fund list, or side-by-side comparison
 POST /api/ingest/{adapter}              run adapter (file upload or trigger)
 GET  /api/ingest/quarantine             quarantine viewer
 POST   /api/portfolios/{id}/chat        SSE stream: plan → evidence → answer + citations
