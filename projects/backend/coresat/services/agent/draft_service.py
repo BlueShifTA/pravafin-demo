@@ -46,6 +46,24 @@ def _render_context(history: list[ChatTurn]) -> str:
     return "\n".join(f"{turn.role}: {turn.content}" for turn in history)
 
 
+def _normalize_draft(draft: PortfolioDraft) -> PortfolioDraft:
+    # A small model's proposed weights often miss summing to 1 (e.g. 1.06). Scale
+    # core + satellites so they sum to 1 before the user sees or builds the draft,
+    # so a good recommendation is never rejected by the create weight check.
+    total = draft.core_weight + sum(position.weight for position in draft.satellites)
+    if total <= 0 or abs(total - 1.0) <= _WEIGHT_TOLERANCE:
+        return draft
+    return draft.model_copy(
+        update={
+            "core_weight": draft.core_weight / total,
+            "satellites": [
+                position.model_copy(update={"weight": position.weight / total})
+                for position in draft.satellites
+            ],
+        }
+    )
+
+
 def _draft_to_spec(draft: PortfolioDraft) -> PortfolioCreate:
     return PortfolioCreate(
         name=draft.name,
@@ -118,10 +136,11 @@ class DraftService:
                 yield chunk
             return
 
+        draft = _normalize_draft(answer.draft) if answer.draft is not None else None
         payload: dict[str, object] = {
             "text": answer.text,
-            "action": "propose" if answer.draft is not None else "chat",
-            "draft": answer.draft.model_dump() if answer.draft is not None else None,
+            "action": "propose" if draft is not None else "chat",
+            "draft": draft.model_dump() if draft is not None else None,
         }
         yield _sse("answer", payload)
 

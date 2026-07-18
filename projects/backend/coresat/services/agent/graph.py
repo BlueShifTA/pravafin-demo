@@ -19,8 +19,10 @@ from coresat.services.agent.llm import AgentLLM
 from coresat.services.grounding import extract_numbers, numbers_grounded
 
 # Planner attempts before falling back to RAG. Each attempt re-plans with the
-# prior error, so retries self-correct instead of repeating identical SQL.
-MAX_ATTEMPTS = 5
+# prior error, so retries self-correct instead of repeating identical SQL. Kept
+# low (3) because each attempt is a full LLM round-trip — more just stalls the
+# user on a slow model without materially improving convergence.
+MAX_ATTEMPTS = 3
 # LangGraph super-step ceiling: MAX_ATTEMPTS loops of 4 nodes + scope + the
 # rag_fallback tail. Set well above the worst path so a legitimate 5th retry is
 # never cut off as a recursion error.

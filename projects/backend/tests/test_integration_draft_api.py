@@ -131,6 +131,32 @@ def test_propose_emits_draft_without_creating() -> None:
         client.__exit__(None, None, None)
 
 
+def test_propose_normalizes_weights_that_do_not_sum_to_one() -> None:
+    # A small model routinely proposes weights that miss summing to 1 (here
+    # 0.7 + 0.2 + 0.2 = 1.1). The shown draft must be rescaled to sum to 1 so
+    # the recommendation is actually buildable.
+    bad = PortfolioDraft(
+        name="AI Growth",
+        initial_capital=100000,
+        monthly_contribution=500,
+        core_fund_ticker="IWDA.AS",
+        core_weight=0.7,
+        satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "UNH", "weight": 0.2}],
+    )
+    answer = Answer(text="Here is a portfolio.", action="propose", draft=bad)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
+        assert response.status_code == 200, response.text
+        events = _events(response.text)
+        draft = next(payload for name, payload in events if name == "answer")["draft"]
+        assert isinstance(draft, dict)
+        total = float(draft["core_weight"]) + sum(float(s["weight"]) for s in draft["satellites"])
+        assert abs(total - 1.0) < 1e-6
+    finally:
+        client.__exit__(None, None, None)
+
+
 def test_confirm_creates_portfolio_in_database() -> None:
     answer = Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))

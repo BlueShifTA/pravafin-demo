@@ -136,21 +136,19 @@ async def test_fabricated_number_triggers_one_replan_then_success() -> None:
 
 
 async def test_retries_until_a_grounded_answer_arrives() -> None:
-    # Three fabricated attempts, then an honest one: the loop keeps re-planning
-    # (well under the cap) and returns the first grounded answer.
+    # Two fabricated attempts, then an honest one on the third (== the cap): the
+    # loop keeps re-planning and returns the first grounded answer.
     fabricated = Answer(text="You invested 123456 in total.")
     honest = Answer(text="You invested 5000 in total.")
-    llm = ScriptedLLM(
-        in_scope=True, plans=[_sql_plan()], answers=[fabricated, fabricated, fabricated, honest]
-    )
+    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated, fabricated, honest])
     state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
-    assert llm.plan_calls == 4
+    assert llm.plan_calls == 3
     assert state["answer"] is not None
     assert state["answer"].text == honest.text
     assert state["grounded"] is True
     # every retry after the first carries the prior error back to the planner
     assert llm.replan_errors_seen[0] is None
-    assert all(err is not None for err in llm.replan_errors_seen[1:4])
+    assert all(err is not None for err in llm.replan_errors_seen[1:3])
 
 
 async def test_persistent_fabrication_exhausts_retries_then_refuses() -> None:
