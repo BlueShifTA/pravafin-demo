@@ -72,6 +72,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-nano}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      RUNTIME_LOG_DIR: /app/runtime_log
+    volumes:
+      # Runtime log (agent SQL, tool errors) lands on the host for debugging.
+      - ${HOME}/Projects/etops-demo-data/runtime_log:/app/runtime_log
     depends_on:
       postgres:
         condition: service_healthy

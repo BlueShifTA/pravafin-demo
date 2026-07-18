@@ -6,6 +6,7 @@ prompt text, enforces isolation and read-only-ness. get_projection returns
 deterministic analytics output; the LLM never computes a number.
 """
 
+import logging
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Protocol
@@ -20,6 +21,8 @@ from coresat.domain.portfolio import PortfolioSummary
 from coresat.domain.rag import RetrievedChunk
 from coresat.services.agent.retrieval import Retriever
 from coresat.services.grounding import six_significant_figures
+
+log = logging.getLogger(__name__)
 
 _MAX_ROWS = 50
 _STATEMENT_TIMEOUT_MS = 5000
@@ -63,6 +66,7 @@ class RunSqlTool:
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error="step carries no SQL"
             )
+        log.info("run_sql (portfolio %d): %s", self._portfolio_id, step.sql)
         try:
             async with portfolio_scope(self._engine, self._portfolio_id) as conn:
                 await conn.execute(text("SET LOCAL transaction_read_only = on"))
@@ -72,6 +76,7 @@ class RunSqlTool:
                 truncated = result.fetchone() is not None
         except (DBAPIError, SQLAlchemyError) as exc:
             cause = getattr(exc, "orig", None) or exc
+            log.warning("run_sql failed: %s | sql=%s", cause, step.sql)
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )
@@ -97,6 +102,7 @@ class FactSqlTool:
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error="step carries no SQL"
             )
+        log.info("run_sql (facts): %s", step.sql)
         try:
             async with self._engine.connect() as conn, conn.begin():
                 await conn.execute(text("SET LOCAL transaction_read_only = on"))
@@ -106,6 +112,7 @@ class FactSqlTool:
                 truncated = result.fetchone() is not None
         except (DBAPIError, SQLAlchemyError) as exc:
             cause = getattr(exc, "orig", None) or exc
+            log.warning("run_sql failed: %s | sql=%s", cause, step.sql)
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )

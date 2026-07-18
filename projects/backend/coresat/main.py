@@ -22,6 +22,7 @@ from coresat.api.ingest import router as ingest_router
 from coresat.api.market import router as market_router
 from coresat.api.portfolios import router as portfolios_router
 from coresat.core.config import get_settings
+from coresat.core.observability import setup_logging
 from coresat.db.session import create_engine, to_async_url
 from coresat.services.agent.agent import GroundedAgent
 from coresat.services.agent.draft_service import DraftService
@@ -163,6 +164,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    setup_logging(settings.runtime_log_dir, logging.INFO)
 
     # Reject wildcard CORS to prevent credential leakage.  In any deployment
     # a wildcard would accept cross-origin requests from any domain.  Explicit

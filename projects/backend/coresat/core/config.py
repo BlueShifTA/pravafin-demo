@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-5-nano"
 
+    # Runtime logging — console + a rotating file the whole app dumps into
+    # (agent SQL, tool errors, request flow) for offline debugging.
+    runtime_log_dir: str = "~/Projects/etops-demo-data/runtime_log"
+
     # Security: explicit CORS origins only — no wildcards.  Wildcards are
     # rejected at startup by create_app().  Add your frontend origin here or
     # override via CORS_ORIGINS env var (comma-separated or JSON list).
