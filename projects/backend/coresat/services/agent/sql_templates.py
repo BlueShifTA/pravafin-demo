@@ -19,7 +19,9 @@ TOP_STOCKS_BY_MARKET_CAP = (
     "WHERE i.type = 'stock' ORDER BY f.market_cap DESC NULLS LAST LIMIT 5"
 )
 STOCKS_BY_TICKER = "SELECT ticker, name, sector FROM instruments WHERE ticker IN ('NVDA', 'AAPL')"
-FUND_BY_TICKER = "SELECT ticker, name, ter, fund_size FROM funds WHERE ticker = 'IWDA.AS'"
+FUND_BY_TICKER = (
+    "SELECT ticker, name, ter, fund_size, cagr_5y, cagr_10y FROM funds WHERE ticker = 'IWDA.AS'"
+)
 LIST_FUNDS = "SELECT ticker, name, ter, fund_size FROM funds ORDER BY fund_size DESC NULLS LAST"
 RANK_STOCKS_BY_FUNDAMENTAL = (
     "SELECT i.ticker, i.name, f.roe, f.pe_trailing "

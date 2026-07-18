@@ -54,6 +54,15 @@ async def test_portfolio_value_query_routes_to_get_projection() -> None:
     assert ToolName.GET_PROJECTION in tools, f"expected get_projection, planned {tools}"
 
 
+async def test_named_fund_cagr_routes_to_run_sql_not_projection() -> None:
+    # A named fund's own return lives in funds.cagr_10y — a run_sql lookup, not
+    # the whole-portfolio projection. Regression guard for the SCHG mis-route.
+    plan, _ = await _planner().plan("What is the 10-year CAGR of the SCHG fund?", "", None)
+    tools = {step.tool for step in plan.steps}
+    assert ToolName.RUN_SQL in tools, f"a named fund's CAGR is a funds lookup: {tools}"
+    assert ToolName.GET_PROJECTION not in tools, f"get_projection is portfolio-only: {tools}"
+
+
 def _events(body: str) -> list[tuple[str, object]]:
     events: list[tuple[str, object]] = []
     for block in body.split("\n\n"):
