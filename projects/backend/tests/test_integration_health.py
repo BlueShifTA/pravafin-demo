@@ -24,11 +24,15 @@ APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_t
 # All seeded rows carry this ticker prefix so the fact tables (shared, read-all)
 # can be cleaned between runs without touching other suites' fixtures.
 _PREFIX = "HLTH"
-# Identical five-day close series shared by every priced instrument so the
-# invested-weighted combined return equals this single series.
-_CLOSES = (100.0, 102.0, 101.0, 103.0, 105.0)
-_DATES = tuple(datetime.date(2026, 1, day) for day in (5, 6, 7, 8, 9))
-_ACQUIRED = datetime.date(2026, 1, 9)  # == last price date => entry == latest => value == invested
+# One deterministic close series, ~70 points (above the _VOL_MIN_OBS=60 floor),
+# shared by every priced look-through instrument (the core basket's underlyings
+# AND the satellites). When every leg tracks the same series the full-portfolio
+# combined return equals that single series, so the expected volatility is
+# exactly its annualised stdev.
+_N = 70
+_CLOSES = tuple(100.0 + (index % 7) - (index % 3) for index in range(_N))
+_DATES = tuple(datetime.date(2025, 9, 1) + datetime.timedelta(days=index) for index in range(_N))
+_ACQUIRED = _DATES[-1]  # == last price date => entry == latest => value == invested
 
 
 def _expected_volatility() -> float:
@@ -59,31 +63,58 @@ async def _reset(admin: asyncpg.Connection) -> None:
 
 
 async def _seed_prices(admin: asyncpg.Connection, instrument_id: int) -> None:
+    # ON CONFLICT: an instrument may be seeded from both the core basket and a
+    # satellite (the deliberate overlap), so prices must not double-insert.
     await admin.executemany(
-        "INSERT INTO prices_daily (instrument_id, date, close) VALUES ($1, $2, $3)",
+        "INSERT INTO prices_daily (instrument_id, date, close) VALUES ($1, $2, $3) "
+        "ON CONFLICT DO NOTHING",
         [(instrument_id, date, close) for date, close in zip(_DATES, _CLOSES, strict=True)],
     )
 
 
+async def _ensure_instrument(
+    admin: asyncpg.Connection, ticker: str, type_: str, sector: str | None, region: str | None
+) -> int:
+    instrument_id = await admin.fetchval(
+        "INSERT INTO instruments (ticker, name, type, sector, region) VALUES ($1, $2, $3, $4, $5) "
+        "ON CONFLICT (ticker) DO NOTHING RETURNING id",
+        ticker,
+        f"Name {ticker}",
+        type_,
+        sector,
+        region,
+    )
+    if instrument_id is None:
+        instrument_id = await admin.fetchval("SELECT id FROM instruments WHERE ticker = $1", ticker)
+    return int(instrument_id)
+
+
 async def _seed_core_fund(admin: asyncpg.Connection, with_prices: bool) -> int:
-    """Create the core ETF (fund + tracking instrument + holdings). Returns fund id."""
-    etf = await admin.fetchval(
+    """Create the core ETF (fund + holdings). The ETF instrument itself has no
+    price series — real ETFs never do — so look-through volatility must price
+    the basket's underlyings. Returns fund id."""
+    await admin.execute(
         f"INSERT INTO instruments (ticker, name, type) "
-        f"VALUES ('{_PREFIX}C', 'Core ETF', 'etf') RETURNING id"
+        f"VALUES ('{_PREFIX}C', 'Core ETF', 'etf') ON CONFLICT (ticker) DO NOTHING"
     )
     fund_id = await admin.fetchval(
         f"INSERT INTO funds (ticker, name, ter, cagr_10y) "
         f"VALUES ('{_PREFIX}C', 'Core World Fund', 0.20, 0.10) RETURNING id"
     )
-    # region mix: us 0.7 / europe 0.3 (normalised). '{_PREFIX}A' also overlaps satellite A.
+    # region mix: us 0.7 / europe 0.3. '{_PREFIX}A' also overlaps satellite A.
     await admin.execute(
         "INSERT INTO fund_holdings (fund_id, ticker, name, weight, sector, region) VALUES "
         f"($1, '{_PREFIX}A', 'Holding A', 0.7, 'Information Technology', 'us'), "
         f"($1, '{_PREFIX}E', 'Holding E', 0.3, 'Health Care', 'europe')",
         fund_id,
     )
+    # The basket's underlyings are the priced names look-through volatility uses.
     if with_prices:
-        await _seed_prices(admin, etf)
+        for suffix, sector, region in (("A", "Healthcare", "us"), ("E", "Health Care", "europe")):
+            instrument_id = await _ensure_instrument(
+                admin, f"{_PREFIX}{suffix}", "stock", sector, region
+            )
+            await _seed_prices(admin, instrument_id)
     return fund_id
 
 
@@ -94,12 +125,7 @@ async def _seed_satellite(
     region: str,
     with_prices: bool,
 ) -> int:
-    instrument_id = await admin.fetchval(
-        "INSERT INTO instruments (ticker, name, type, sector, region) "
-        f"VALUES ('{_PREFIX}{suffix}', 'Stock {suffix}', 'stock', $1, $2) RETURNING id",
-        sector,
-        region,
-    )
+    instrument_id = await _ensure_instrument(admin, f"{_PREFIX}{suffix}", "stock", sector, region)
     if with_prices:
         await _seed_prices(admin, instrument_id)
     return instrument_id

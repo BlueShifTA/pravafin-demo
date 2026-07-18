@@ -4,6 +4,7 @@ import datetime
 import math
 import statistics
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
@@ -33,8 +34,12 @@ _SECTOR_GOOD, _SECTOR_BAD = 0.20, 0.60
 _REGION_GOOD, _REGION_BAD = 0.30, 0.80
 _COST_GOOD, _COST_BAD = 0.001, 0.006
 _OVERLAP_GOOD, _OVERLAP_BAD = 0.0, 0.30
-_VOL_GOOD, _VOL_BAD = 0.10, 0.30
+_VOL_GOOD, _VOL_BAD = 0.12, 0.30
 _TRADING_DAYS = 252
+# Realized-volatility look-through window (calendar days ≈ 3y of trading) and the
+# minimum aligned observations before a volatility estimate is trustworthy.
+_VOL_WINDOW_DAYS = 1100
+_VOL_MIN_OBS = 60
 
 
 def _normalize(label: str | None) -> str:
@@ -121,14 +126,14 @@ def _overlap_value(
     return total
 
 
-def _volatility_value(rows: Sequence[RowMapping], prices: Sequence[RowMapping]) -> float | None:
-    held: dict[int, float] = {}
-    for row in rows:
-        instrument_id = row["instrument_id"] or row["core_instrument_id"]
-        if instrument_id is not None:
-            held[int(instrument_id)] = held.get(int(instrument_id), 0.0) + float(
-                row["invested_amount"]
-            )
+@dataclass(frozen=True)
+class _LookLeg:
+    weight: float  # fraction of the whole portfolio (all legs sum to ~1)
+    instrument_id: int | None
+    beta: float | None
+
+
+def _daily_returns(prices: Sequence[RowMapping]) -> dict[int, dict[datetime.date, float]]:
     closes: dict[int, list[tuple[datetime.date, float]]] = {}
     for price in prices:
         closes.setdefault(int(price["instrument_id"]), []).append(
@@ -144,20 +149,93 @@ def _volatility_value(rows: Sequence[RowMapping], prices: Sequence[RowMapping]) 
                 daily[series[index][0]] = series[index][1] / prev_close - 1
         if daily:
             returns[instrument_id] = daily
-    priced = [instrument_id for instrument_id in held if instrument_id in returns]
-    priced_invested = sum(held[instrument_id] for instrument_id in priced)
-    if not priced or priced_invested <= 0:
+    return returns
+
+
+def _lookthrough_legs(rows: Sequence[RowMapping], holdings: Sequence[RowMapping]) -> list[_LookLeg]:
+    # Decompose the portfolio into single-name legs whose weights sum to 1: a
+    # core fund position becomes its fund_holdings basket (leg weight = the
+    # fund's portfolio weight * the holding's share of the basket), so the
+    # diversified core counts toward risk instead of being dropped. Satellites
+    # are one leg each. Basket shares are normalised within the fund, which is
+    # scale-agnostic — real iShares holdings are percent-scale, the test
+    # fixtures fraction-scale.
+    total = sum(float(row["invested_amount"]) for row in rows)
+    if total <= 0:
+        return []
+    holdings_by_fund: dict[int, list[RowMapping]] = {}
+    for holding in holdings:
+        holdings_by_fund.setdefault(int(holding["fund_id"]), []).append(holding)
+    legs: list[_LookLeg] = []
+    for row in rows:
+        weight = float(row["invested_amount"]) / total
+        if row["fund_id"] is not None:
+            fund_holdings = holdings_by_fund.get(int(row["fund_id"]), [])
+            basket = sum(float(holding["weight"] or 0.0) for holding in fund_holdings)
+            if basket <= 0:
+                legs.append(_LookLeg(weight=weight, instrument_id=None, beta=None))
+                continue
+            for holding in fund_holdings:
+                fraction = float(holding["weight"] or 0.0) / basket
+                instrument_id = holding["instrument_id"]
+                legs.append(
+                    _LookLeg(
+                        weight=weight * fraction,
+                        instrument_id=int(instrument_id) if instrument_id is not None else None,
+                        beta=float(holding["beta"]) if holding["beta"] is not None else None,
+                    )
+                )
+        elif row["instrument_id"] is not None:
+            legs.append(
+                _LookLeg(
+                    weight=weight,
+                    instrument_id=int(row["instrument_id"]),
+                    beta=float(row["stock_beta"]) if row["stock_beta"] is not None else None,
+                )
+            )
+    return legs
+
+
+def _volatility_value(legs: Sequence[_LookLeg], prices: Sequence[RowMapping]) -> float | None:
+    # Full-portfolio realized volatility over the look-through legs. Priced legs
+    # (a real instrument with a price series) contribute their own daily return;
+    # unpriced legs (foreign names, an unpriced core) keep their weight and
+    # contribute beta * the market factor built from the priced legs — so a name
+    # is never dropped and the surviving weights are never rescaled to 100%
+    # (the exact bug that let the diversified 60% core vanish from the number).
+    returns = _daily_returns(prices)
+    priced_weight: dict[int, float] = {}
+    unpriced_beta_weight = 0.0
+    for leg in legs:
+        if leg.instrument_id is not None and leg.instrument_id in returns:
+            priced_weight[leg.instrument_id] = (
+                priced_weight.get(leg.instrument_id, 0.0) + leg.weight
+            )
+        else:
+            unpriced_beta_weight += leg.weight * (leg.beta if leg.beta is not None else 1.0)
+    if not priced_weight:
         return None
-    weights = {instrument_id: held[instrument_id] / priced_invested for instrument_id in priced}
-    common: set[datetime.date] = set.intersection(
-        *(set(returns[instrument_id]) for instrument_id in priced)
-    )
-    if len(common) < 2:
+    # Per-date weighted return of the priced sub-portfolio; a name absent on a
+    # given day just does not contribute that day (robust to a single missing
+    # print across a 100+ name basket, unlike a zero-tolerance date intersection).
+    dates: set[datetime.date] = set()
+    for instrument_id in priced_weight:
+        dates |= set(returns[instrument_id])
+    combined: list[float] = []
+    for day in sorted(dates):
+        priced_return = 0.0
+        present_weight = 0.0
+        for instrument_id, weight in priced_weight.items():
+            daily = returns[instrument_id].get(day)
+            if daily is not None:
+                priced_return += weight * daily
+                present_weight += weight
+        if present_weight <= 0:
+            continue
+        market_factor = priced_return / present_weight
+        combined.append(priced_return + market_factor * unpriced_beta_weight)
+    if len(combined) < _VOL_MIN_OBS:
         return None
-    combined = [
-        sum(weights[instrument_id] * returns[instrument_id][day] for instrument_id in priced)
-        for day in sorted(common)
-    ]
     return statistics.stdev(combined) * math.sqrt(_TRADING_DAYS)
 
 
@@ -207,7 +285,7 @@ def _compute_health(
         _criterion(
             "volatility",
             "Volatility",
-            _volatility_value(rows, prices),
+            _volatility_value(_lookthrough_legs(rows, holdings), prices),
             _VOL_GOOD,
             _VOL_BAD,
         ),
@@ -230,6 +308,7 @@ SELECT
     COALESCE(i.ticker, fd.ticker) AS label,
     entry.close  AS entry_close,
     latest.close AS latest_close,
+    fu.beta      AS stock_beta,
     fu.cagr_10y  AS stock_cagr,
     fd.cagr_10y  AS fund_cagr,
     fd.ter       AS fund_ter
@@ -299,13 +378,19 @@ class AnalyticsService:
                 return None
             rows = (await conn.execute(text(_POSITIONS_SQL))).mappings().all()
             core_fund_ids = [int(row["fund_id"]) for row in rows if row["fund_id"] is not None]
-            held_instrument_ids = [
-                int(instrument_id)
-                for row in rows
-                if (instrument_id := row["instrument_id"] or row["core_instrument_id"]) is not None
-            ]
             holdings = await self._fetch_core_holdings(conn, core_fund_ids)
-            prices = await self._fetch_prices(conn, held_instrument_ids)
+            # Volatility is computed on the full look-through set: satellite stocks
+            # plus every priced underlying of the core basket, so the diversified
+            # core is part of the risk number instead of being dropped.
+            price_ids = {
+                int(row["instrument_id"]) for row in rows if row["instrument_id"] is not None
+            }
+            price_ids |= {
+                int(holding["instrument_id"])
+                for holding in holdings
+                if holding["instrument_id"] is not None
+            }
+            prices = await self._fetch_prices(conn, sorted(price_ids))
 
         allocation: list[AllocationSlice] = []
         weighted_rate = 0.0
@@ -385,8 +470,12 @@ class AnalyticsService:
             return []
         result = await conn.execute(
             text(
-                "SELECT fund_id, ticker, region, weight FROM fund_holdings "
-                "WHERE fund_id = ANY(:ids)"
+                "SELECT fh.fund_id, fh.ticker, fh.region, fh.weight, "
+                "i.id AS instrument_id, fu.beta "
+                "FROM fund_holdings fh "
+                "LEFT JOIN instruments i ON upper(trim(i.ticker)) = upper(trim(fh.ticker)) "
+                "LEFT JOIN fundamentals fu ON fu.instrument_id = i.id "
+                "WHERE fh.fund_id = ANY(:ids)"
             ),
             {"ids": fund_ids},
         )
@@ -401,10 +490,11 @@ class AnalyticsService:
             text(
                 "SELECT instrument_id, date, close FROM prices_daily "
                 "WHERE instrument_id = ANY(:ids) AND date >= "
-                "(SELECT max(date) FROM prices_daily WHERE instrument_id = ANY(:ids)) - 365 "
+                "(SELECT max(date) FROM prices_daily WHERE instrument_id = ANY(:ids)) "
+                "- CAST(:window AS integer) "
                 "ORDER BY instrument_id, date"
             ),
-            {"ids": instrument_ids},
+            {"ids": instrument_ids, "window": _VOL_WINDOW_DAYS},
         )
         return list(result.mappings().all())
 
