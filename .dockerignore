@@ -1,0 +1,20 @@
+# Keep the Docker build context lean — only manifests + source are needed.
+.git
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+node_modules
+**/node_modules
+projects/frontend/.next
+projects/frontend/out
+docs/_build
+**/.env
+**/.env.local
+*.log
+coverage.xml
+.coverage
+draft-agent-openai-proposal.png
