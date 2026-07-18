@@ -23,37 +23,10 @@ import {
 } from "@/lib/generated/endpoints";
 import type { ChatMessageOut } from "@/lib/generated/models";
 import { usePortfolio } from "@/lib/portfolio-context";
+import { readSseEvents } from "@/lib/sse";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
 
 const DRAWER_WIDTH = { xs: "85vw", sm: 380 };
-
-type StreamEvent = { event: string; data: Record<string, unknown> };
-
-// The chat POST streams text/event-stream — orval generates JSON clients only,
-// so this endpoint is consumed with a hand-rolled SSE reader by design.
-async function* readSseEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<StreamEvent> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let separator = buffer.indexOf("\n\n");
-    while (separator >= 0) {
-      const block = buffer.slice(0, separator);
-      buffer = buffer.slice(separator + 2);
-      let event = "";
-      let data: Record<string, unknown> | null = null;
-      for (const line of block.split("\n")) {
-        if (line.startsWith("event: ")) event = line.slice(7);
-        if (line.startsWith("data: ")) data = JSON.parse(line.slice(6));
-      }
-      if (event && data) yield { event, data };
-      separator = buffer.indexOf("\n\n");
-    }
-  }
-}
 
 function MessageBubble({ message }: { message: ChatMessageOut }) {
   const isUser = message.role === "user";

@@ -102,13 +102,17 @@ def build_graph(
         answer = state["answer"]
         if answer is None:
             raise RuntimeError("validator reached without an answer")
-        evidence_numbers = {
+        # grounded set = evidence numbers plus user-stated figures: capital,
+        # weights and similar numbers come from the user's own words, not SQL
+        # evidence, and must not trip the fabrication guard
+        grounded_numbers = extract_numbers(state["query"]) | extract_numbers(state["context"])
+        grounded_numbers |= {
             number
             for item in state["evidence"]
             if item.error is None
             for number in extract_numbers(item.content)
         }
-        grounded = numbers_grounded(answer.text, evidence_numbers)
+        grounded = numbers_grounded(answer.text, grounded_numbers)
         problems: list[str] = []
         if not grounded:
             problems.append("the answer quotes figures that appear in no gathered evidence")

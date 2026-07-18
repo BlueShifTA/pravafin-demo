@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from coresat.db.schema import apply_schema
 from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
 from coresat.main import app
+from coresat.services.agent.agent import GroundedAgent
 from coresat.services.agent.graph import CANNOT_ANSWER_TEXT, OFF_TOPIC_TEXT
 from coresat.services.agent.llm import Usage
 from coresat.services.agent.service import CopilotService
@@ -109,8 +110,9 @@ def _client(llm: ScriptedAgentLLM) -> TestClient:
     state = test_client.app.state  # type: ignore[union-attr]
     state.copilot_service = CopilotService(
         engine=state.app_engine,
-        llm=llm,
+        agent=GroundedAgent(llm),
         summaries=state.analytics_service,
+        rag_tool=state.rag_tool,
         model_name="scripted",
     )
     return test_client

@@ -20,6 +20,14 @@ from coresat.services.ingestion.pipeline import IngestionPipeline, build_registr
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 ADMIN_SQLA_URL = "postgresql+asyncpg://postgres:postgres@localhost:5434/coresat_test"
 
+
+class _FakeEmbedder:
+    """CSV adapters never embed; the pdf adapter's embedder is unused here."""
+
+    async def embed(self, query: str) -> list[float]:
+        return [0.0] * 768
+
+
 UNIVERSE_CSV = b"""ticker,type,sector,industry
 TSTN,stock,semiconductor,Semiconductors
 ,stock,broken-row,
@@ -56,7 +64,7 @@ async def clean_db() -> AsyncIterator[None]:
 @pytest.fixture
 async def pipeline() -> AsyncIterator[IngestionPipeline]:
     engine: AsyncEngine = create_engine(ADMIN_SQLA_URL)
-    yield IngestionPipeline(engine=engine, registry=build_registry())
+    yield IngestionPipeline(engine=engine, registry=build_registry(_FakeEmbedder()))
     await engine.dispose()
 
 
@@ -156,7 +164,7 @@ TSTQ,2024,,,,200000,,,10000
         await admin.close()
         engine = create_engine(ADMIN_SQLA_URL)
         try:
-            pipeline = IngestionPipeline(engine=engine, registry=build_registry())
+            pipeline = IngestionPipeline(engine=engine, registry=build_registry(_FakeEmbedder()))
             await pipeline.run("financials_yearly_csv", payload)
         finally:
             await engine.dispose()

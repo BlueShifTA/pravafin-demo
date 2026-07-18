@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine
 from coresat.domain.agent import Step, ToolName
-from coresat.domain.portfolio import PortfolioSummary, ProjectionOut
+from coresat.domain.portfolio import PortfolioHealth, PortfolioSummary, ProjectionOut
 from coresat.services.agent.tools import GetProjectionTool, RunSqlTool
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
@@ -170,6 +170,7 @@ def _summary(portfolio_id: int) -> PortfolioSummary:
         projections=[
             ProjectionOut(years=10, annual_rate=0.07, expected=152340.55, low=1e5, high=2e5),
         ],
+        health=PortfolioHealth(headline=0.0, criteria=[]),
     )
 
 

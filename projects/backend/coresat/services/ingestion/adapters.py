@@ -2,12 +2,15 @@
 
 import csv
 import io
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Protocol
 
 from pydantic import BaseModel, ValidationError
+from pypdf import PdfReader
+from pypdf.errors import PyPdfError
 
 from coresat.domain.ingestion import (
+    DocChunkRecord,
     FundamentalsRecord,
     FundRecord,
     HoldingRecord,
@@ -16,6 +19,9 @@ from coresat.domain.ingestion import (
     RejectedRow,
     YearlyFinancialsRecord,
 )
+
+# chunk target in characters; word-packed so a chunk never splits a token
+_CHUNK_CHARS = 800
 
 ParseResult = tuple[Sequence[BaseModel], list[RejectedRow]]
 
@@ -237,6 +243,63 @@ class FinancialsYearlyCsvAdapter:
                 )
             except ValidationError as error:
                 rejects.append(RejectedRow(row=row, reason=_reason(error)))
+        return valid, rejects
+
+
+def _chunk_text(body: str) -> Iterator[str]:
+    """Word-pack `body` into ~_CHUNK_CHARS pieces; whitespace-only yields nothing."""
+    buffer: list[str] = []
+    length = 0
+    for word in body.split():
+        if buffer and length + len(word) + 1 > _CHUNK_CHARS:
+            yield " ".join(buffer)
+            buffer, length = [], 0
+        buffer.append(word)
+        length += len(word) + 1
+    if buffer:
+        yield " ".join(buffer)
+
+
+class PdfAdapter:
+    """Per-page text extraction (pypdf) → word-packed chunks with page provenance."""
+
+    name = "pdf"
+    version = "1"
+
+    def parse(self, payload: bytes, source_ref: str | None, /) -> ParseResult:
+        if not source_ref:
+            raise ValueError("pdf requires source_ref = document name")
+        # A corrupt upload must fail with a clear message like the CSV adapters,
+        # not surface a raw pypdf error. Text extraction is eager here so the
+        # failure is caught at the boundary, before any records are built.
+        try:
+            reader = PdfReader(io.BytesIO(payload))
+            pages = [
+                (number, page.extract_text() or "")
+                for number, page in enumerate(reader.pages, start=1)
+            ]
+        except PyPdfError as error:
+            raise ValueError(f"could not read PDF '{source_ref}': {error}") from error
+        valid: list[BaseModel] = []
+        rejects: list[RejectedRow] = []
+        index = 0
+        for page_number, page_text in pages:
+            for piece in _chunk_text(page_text):
+                try:
+                    valid.append(
+                        DocChunkRecord(
+                            source_doc=source_ref,
+                            doc_type="pdf",  # ponytail: one doc_type; split by kind if RAG grows
+                            page=page_number,
+                            chunk_index=index,
+                            text=piece,
+                        )
+                    )
+                    index += 1
+                except ValidationError as error:
+                    rejects.append(
+                        RejectedRow(row={"page": str(page_number)}, reason=_reason(error))
+                    )
         return valid, rejects
 
 

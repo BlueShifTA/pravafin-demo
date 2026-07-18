@@ -36,9 +36,11 @@ import type {
   CompareRequest,
   ComparisonResult,
   CopilotInfo,
+  DraftChatRequest,
   ExampleEchoRequest,
   ExampleEchoResponse,
   FundRow,
+  FundsApiMarketFundsGetParams,
   HTTPValidationError,
   HealthHealthGet200,
   IndicatorPoint,
@@ -3456,19 +3458,43 @@ export type fundsApiMarketFundsGetResponse200 = {
   status: 200;
 };
 
+export type fundsApiMarketFundsGetResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
 export type fundsApiMarketFundsGetResponseSuccess = fundsApiMarketFundsGetResponse200 & {
   headers: Headers;
 };
-export type fundsApiMarketFundsGetResponse = fundsApiMarketFundsGetResponseSuccess;
+export type fundsApiMarketFundsGetResponseError = fundsApiMarketFundsGetResponse422 & {
+  headers: Headers;
+};
 
-export const getFundsApiMarketFundsGetUrl = () => {
-  return `/api/market/funds`;
+export type fundsApiMarketFundsGetResponse =
+  | fundsApiMarketFundsGetResponseSuccess
+  | fundsApiMarketFundsGetResponseError;
+
+export const getFundsApiMarketFundsGetUrl = (params?: FundsApiMarketFundsGetParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/market/funds?${stringifiedParams}`
+    : `/api/market/funds`;
 };
 
 export const fundsApiMarketFundsGet = async (
+  params?: FundsApiMarketFundsGetParams,
   options?: RequestInit
 ): Promise<fundsApiMarketFundsGetResponse> => {
-  const res = await fetch(getFundsApiMarketFundsGetUrl(), {
+  const res = await fetch(getFundsApiMarketFundsGetUrl(params), {
     ...options,
     method: "GET",
   });
@@ -3479,29 +3505,34 @@ export const fundsApiMarketFundsGet = async (
   return { data, status: res.status, headers: res.headers } as fundsApiMarketFundsGetResponse;
 };
 
-export const getFundsApiMarketFundsGetInfiniteQueryKey = () => {
-  return ["infinite", `/api/market/funds`] as const;
+export const getFundsApiMarketFundsGetInfiniteQueryKey = (
+  params?: FundsApiMarketFundsGetParams
+) => {
+  return ["infinite", `/api/market/funds`, ...(params ? [params] : [])] as const;
 };
 
-export const getFundsApiMarketFundsGetQueryKey = () => {
-  return [`/api/market/funds`] as const;
+export const getFundsApiMarketFundsGetQueryKey = (params?: FundsApiMarketFundsGetParams) => {
+  return [`/api/market/funds`, ...(params ? [params] : [])] as const;
 };
 
 export const getFundsApiMarketFundsGetInfiniteQueryOptions = <
   TData = InfiniteData<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>>,
-  TError = unknown,
->(options?: {
-  query?: Partial<
-    UseInfiniteQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
-  >;
-  fetch?: RequestInit;
-}) => {
+  TError = HTTPValidationError,
+>(
+  params?: FundsApiMarketFundsGetParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  }
+) => {
   const { query: queryOptions, fetch: fetchOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getFundsApiMarketFundsGetInfiniteQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getFundsApiMarketFundsGetInfiniteQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>> = ({ signal }) =>
-    fundsApiMarketFundsGet({ signal, ...fetchOptions });
+    fundsApiMarketFundsGet(params, { signal, ...fetchOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseInfiniteQueryOptions<
     Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
@@ -3513,12 +3544,13 @@ export const getFundsApiMarketFundsGetInfiniteQueryOptions = <
 export type FundsApiMarketFundsGetInfiniteQueryResult = NonNullable<
   Awaited<ReturnType<typeof fundsApiMarketFundsGet>>
 >;
-export type FundsApiMarketFundsGetInfiniteQueryError = unknown;
+export type FundsApiMarketFundsGetInfiniteQueryError = HTTPValidationError;
 
 export function useFundsApiMarketFundsGetInfinite<
   TData = InfiniteData<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params: undefined | FundsApiMarketFundsGetParams,
   options: {
     query: Partial<
       UseInfiniteQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3537,8 +3569,9 @@ export function useFundsApiMarketFundsGetInfinite<
 ): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useFundsApiMarketFundsGetInfinite<
   TData = InfiniteData<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params?: FundsApiMarketFundsGetParams,
   options?: {
     query?: Partial<
       UseInfiniteQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3557,8 +3590,9 @@ export function useFundsApiMarketFundsGetInfinite<
 ): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useFundsApiMarketFundsGetInfinite<
   TData = InfiniteData<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params?: FundsApiMarketFundsGetParams,
   options?: {
     query?: Partial<
       UseInfiniteQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3573,8 +3607,9 @@ export function useFundsApiMarketFundsGetInfinite<
 
 export function useFundsApiMarketFundsGetInfinite<
   TData = InfiniteData<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params?: FundsApiMarketFundsGetParams,
   options?: {
     query?: Partial<
       UseInfiniteQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3583,7 +3618,7 @@ export function useFundsApiMarketFundsGetInfinite<
   },
   queryClient?: QueryClient
 ): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getFundsApiMarketFundsGetInfiniteQueryOptions(options);
+  const queryOptions = getFundsApiMarketFundsGetInfiniteQueryOptions(params, options);
 
   const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
     TData,
@@ -3595,19 +3630,22 @@ export function useFundsApiMarketFundsGetInfinite<
 
 export const getFundsApiMarketFundsGetQueryOptions = <
   TData = Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
-  TError = unknown,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
-  >;
-  fetch?: RequestInit;
-}) => {
+  TError = HTTPValidationError,
+>(
+  params?: FundsApiMarketFundsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
+    >;
+    fetch?: RequestInit;
+  }
+) => {
   const { query: queryOptions, fetch: fetchOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getFundsApiMarketFundsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getFundsApiMarketFundsGetQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>> = ({ signal }) =>
-    fundsApiMarketFundsGet({ signal, ...fetchOptions });
+    fundsApiMarketFundsGet(params, { signal, ...fetchOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
@@ -3619,12 +3657,13 @@ export const getFundsApiMarketFundsGetQueryOptions = <
 export type FundsApiMarketFundsGetQueryResult = NonNullable<
   Awaited<ReturnType<typeof fundsApiMarketFundsGet>>
 >;
-export type FundsApiMarketFundsGetQueryError = unknown;
+export type FundsApiMarketFundsGetQueryError = HTTPValidationError;
 
 export function useFundsApiMarketFundsGet<
   TData = Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params: undefined | FundsApiMarketFundsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3643,8 +3682,9 @@ export function useFundsApiMarketFundsGet<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useFundsApiMarketFundsGet<
   TData = Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params?: FundsApiMarketFundsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3663,8 +3703,9 @@ export function useFundsApiMarketFundsGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useFundsApiMarketFundsGet<
   TData = Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params?: FundsApiMarketFundsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3679,8 +3720,9 @@ export function useFundsApiMarketFundsGet<
 
 export function useFundsApiMarketFundsGet<
   TData = Awaited<ReturnType<typeof fundsApiMarketFundsGet>>,
-  TError = unknown,
+  TError = HTTPValidationError,
 >(
+  params?: FundsApiMarketFundsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof fundsApiMarketFundsGet>>, TError, TData>
@@ -3689,7 +3731,7 @@ export function useFundsApiMarketFundsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getFundsApiMarketFundsGetQueryOptions(options);
+  const queryOptions = getFundsApiMarketFundsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -5409,3 +5451,122 @@ export function useCopilotInfoApiCopilotInfoGet<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Draft Chat
+ */
+export type draftChatApiPortfolioDraftChatPostResponse200 = {
+  data: unknown;
+  status: 200;
+};
+
+export type draftChatApiPortfolioDraftChatPostResponse422 = {
+  data: HTTPValidationError;
+  status: 422;
+};
+
+export type draftChatApiPortfolioDraftChatPostResponseSuccess =
+  draftChatApiPortfolioDraftChatPostResponse200 & {
+    headers: Headers;
+  };
+export type draftChatApiPortfolioDraftChatPostResponseError =
+  draftChatApiPortfolioDraftChatPostResponse422 & {
+    headers: Headers;
+  };
+
+export type draftChatApiPortfolioDraftChatPostResponse =
+  | draftChatApiPortfolioDraftChatPostResponseSuccess
+  | draftChatApiPortfolioDraftChatPostResponseError;
+
+export const getDraftChatApiPortfolioDraftChatPostUrl = () => {
+  return `/api/portfolio-draft/chat`;
+};
+
+export const draftChatApiPortfolioDraftChatPost = async (
+  draftChatRequest: DraftChatRequest,
+  options?: RequestInit
+): Promise<draftChatApiPortfolioDraftChatPostResponse> => {
+  const res = await fetch(getDraftChatApiPortfolioDraftChatPostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(draftChatRequest),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: draftChatApiPortfolioDraftChatPostResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as draftChatApiPortfolioDraftChatPostResponse;
+};
+
+export const getDraftChatApiPortfolioDraftChatPostMutationOptions = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof draftChatApiPortfolioDraftChatPost>>,
+    TError,
+    { data: DraftChatRequest },
+    TContext
+  >;
+  fetch?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof draftChatApiPortfolioDraftChatPost>>,
+  TError,
+  { data: DraftChatRequest },
+  TContext
+> => {
+  const mutationKey = ["draftChatApiPortfolioDraftChatPost"];
+  const { mutation: mutationOptions, fetch: fetchOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, fetch: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof draftChatApiPortfolioDraftChatPost>>,
+    { data: DraftChatRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return draftChatApiPortfolioDraftChatPost(data, fetchOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DraftChatApiPortfolioDraftChatPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof draftChatApiPortfolioDraftChatPost>>
+>;
+export type DraftChatApiPortfolioDraftChatPostMutationBody = DraftChatRequest;
+export type DraftChatApiPortfolioDraftChatPostMutationError = HTTPValidationError;
+
+/**
+ * @summary Draft Chat
+ */
+export const useDraftChatApiPortfolioDraftChatPost = <
+  TError = HTTPValidationError,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof draftChatApiPortfolioDraftChatPost>>,
+      TError,
+      { data: DraftChatRequest },
+      TContext
+    >;
+    fetch?: RequestInit;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof draftChatApiPortfolioDraftChatPost>>,
+  TError,
+  { data: DraftChatRequest },
+  TContext
+> => {
+  return useMutation(getDraftChatApiPortfolioDraftChatPostMutationOptions(options), queryClient);
+};

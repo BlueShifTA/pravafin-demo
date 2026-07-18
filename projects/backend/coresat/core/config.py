@@ -24,9 +24,24 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat"
     admin_database_url: str = "postgresql://postgres:postgres@localhost:5434/coresat"
 
-    # LLM — local Ollama only
+    # LLM providers — each agent selects its backend independently.
+    # "ollama" (local) or "openai" (cloud API).
+    copilot_provider: str = "ollama"
+    draft_agent_provider: str = "ollama"
+
+    # Local Ollama
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:4b"
+
+    # RAG — document embeddings (Ollama) and the cross-encoder reranker
+    # (fastembed ONNX, no torch). embed model must match doc_chunks.embedding
+    # dimensionality (768-d for nomic-embed-text).
+    ollama_embed_model: str = "nomic-embed-text"
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+
+    # OpenAI — only consulted when a provider above is "openai".
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5-mini"
 
     # Security: explicit CORS origins only — no wildcards.  Wildcards are
     # rejected at startup by create_app().  Add your frontend origin here or

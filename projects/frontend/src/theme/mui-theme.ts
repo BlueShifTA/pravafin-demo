@@ -62,9 +62,9 @@ export const appTheme = createTheme({
           paddingInline: 14,
         },
         containedPrimary: {
-          boxShadow: "0 6px 16px rgba(29, 110, 242, 0.18)",
+          boxShadow: "0 6px 16px rgba(139, 72, 255, 0.20)",
           "&:hover": {
-            boxShadow: "0 8px 20px rgba(29, 110, 242, 0.22)",
+            boxShadow: "0 8px 20px rgba(139, 72, 255, 0.26)",
           },
         },
       },

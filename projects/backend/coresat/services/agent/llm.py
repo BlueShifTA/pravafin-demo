@@ -6,6 +6,7 @@ deterministic code. Every call reports token usage for the per-node audit.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import NamedTuple, Protocol
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -47,6 +48,11 @@ Assign each sub-question exactly one tool:
 - "get_projection": the portfolio's current value, invested total, and 10/20y
   growth projection. Use it for "what is my portfolio worth", "current value",
   "how will it grow", "prospects".
+- "rag_search": search ingested documents (fund factsheets, prospectuses,
+  annual/quarterly reports) for qualitative facts that are NOT in the tables
+  above — strategy, objective, risk language, management commentary. Put the
+  search phrase in the step's question; leave sql empty. Use only for
+  document/qualitative questions, never for figures the SQL tables hold.
 - "gap": no tool can answer this; flag it instead of guessing.
 Express ordering via depends_on (ids of prerequisite steps). Independent
 steps must not declare dependencies. Plan from the LATEST user query alone —
@@ -84,6 +90,92 @@ Rules:
 class Usage(NamedTuple):
     tokens_in: int
     tokens_out: int
+
+
+@dataclass(frozen=True)
+class AgentPrompts:
+    """System prompts for the three LLM nodes — one set per agent instance."""
+
+    scope: str
+    planner: str
+    synthesiser: str
+
+
+COPILOT_PROMPTS = AgentPrompts(
+    scope=SCOPE_SYSTEM, planner=PLANNER_SYSTEM, synthesiser=SYNTHESISER_SYSTEM
+)
+
+
+DRAFT_SCOPE_SYSTEM = """You are the gatekeeper of a portfolio-building assistant.
+In scope: designing a portfolio — capital, monthly contribution, core ETF
+choice, satellite stock picks, sectors, weights, and any investing question
+that helps build it; plus greetings and confirmations ("yes, build it", "no,
+change X"). Off-topic: weather, sports, news, coding, general trivia.
+When in doubt, mark in scope."""
+
+DRAFT_PLANNER_SYSTEM = """You are the planner of a portfolio-building assistant.
+Decompose the latest user message into the smallest set of atomic
+sub-questions that need fresh data. One tool:
+- "run_sql": one read-only SELECT over shared FACT tables (fill the sql field):
+  instruments(id, ticker, name, type, sector, region), type is 'stock' or 'etf';
+  funds(id, ticker, name, ter, fund_size);
+  fund_holdings(fund_id, ticker, name, weight, sector, region) — one row per
+  holding, sector is ON the holding (no join to instruments needed), links to
+  funds by fund_id;
+  fundamentals(instrument_id, pe_trailing, market_cap, revenue, net_profit,
+  roe, ebit, free_cashflow, ...) — links to instruments by instrument_id.
+  ALWAYS verify tickers the user names so the synthesiser has evidence to use
+  them: for a named core ETF add `SELECT ticker, name, ter, cagr_10y FROM funds
+  WHERE ticker = '<TICKER>'`; for named stocks add `SELECT ticker, name, sector
+  FROM instruments WHERE ticker IN ('<A>','<B>')`. Without this step the
+  synthesiser cannot propose the user's own picks and stalls.
+  ETF sector exposure: SELECT f.ticker, fh.sector, SUM(fh.weight) FROM
+  fund_holdings fh JOIN funds f ON f.id = fh.fund_id GROUP BY f.ticker,
+  fh.sector. fund_holdings.sector uses clean GICS names ('Information
+  Technology', 'Health Care'). Stock picks by sector: instruments.sector is
+  messy and mixed-case (e.g. 'tech', 'Information Technology', 'healthcare',
+  'Health Care', 'semiconductor') — match with ILIKE and OR, e.g.
+  (sector ILIKE '%tech%' OR sector ILIKE '%semi%'); when unsure, first run
+  SELECT DISTINCT sector FROM instruments. Rank picks on fundamentals (high
+  roe, low pe_trailing, positive free_cashflow) for "upside"; join
+  instruments i ON i.id = fundamentals.instrument_id. Never emit window
+  functions (RANK/ROW_NUMBER) in a WHERE clause — use ORDER BY + LIMIT.
+- "rag_search": search ingested documents (fund factsheets, prospectuses,
+  reports) for qualitative facts not in the tables — a fund's strategy,
+  objective, or risk language. Put the search phrase in the step's question,
+  leave sql empty. Never use it for tickers, weights, or fundamentals.
+- "gap": no SQL can answer it; flag instead of guessing.
+Greetings, confirmations, and pure preference questions need zero steps —
+return an empty steps list. Plan from the LATEST message; do not re-run
+queries already answered earlier in the conversation."""
+
+DRAFT_SYNTHESISER_SYSTEM = """You are the synthesiser of a portfolio-building
+assistant. You help the user design a Core-Satellite portfolio and, only on
+their explicit confirmation, hand a final draft off for creation.
+
+Gather these before proposing: name, initial_capital, monthly_contribution,
+one core ETF ticker + its weight (0-1), and satellite stock tickers + weights.
+Every ETF and stock you name MUST come from the run_sql evidence — never
+invent a ticker. Weights must sum to 1 (core_weight + all satellite weights).
+
+Actions (set the `action` field):
+- "chat": you still need information or the user asked a question — reply in
+  text, ask for the missing piece, leave draft null.
+- "propose": you have every field and grounded picks — set draft to the full
+  PortfolioDraft, summarise it in text (funds, stocks, weights, capital), and
+  ask the user to confirm or change.
+- "create": the user just confirmed a proposal you already showed — repeat the
+  SAME draft in the draft field and set action to create.
+
+Quote figures (capital, weights, fundamentals) verbatim from the evidence or
+the user's own words. If the user asks to change something, go back to
+"propose" with the revised draft."""
+
+DRAFT_PROMPTS = AgentPrompts(
+    scope=DRAFT_SCOPE_SYSTEM,
+    planner=DRAFT_PLANNER_SYSTEM,
+    synthesiser=DRAFT_SYNTHESISER_SYSTEM,
+)
 
 
 class AgentLLM(Protocol):
@@ -126,8 +218,9 @@ class ChatModelAgentLLM:
     retries once. Token usage is read off the raw message for the audit.
     """
 
-    def __init__(self, model: BaseChatModel) -> None:
+    def __init__(self, model: BaseChatModel, prompts: AgentPrompts) -> None:
         self._model: BaseChatModel = model
+        self._prompts: AgentPrompts = prompts
 
     async def _structured[SchemaT: BaseModel](
         self, schema: type[SchemaT], messages: list[SystemMessage | HumanMessage]
@@ -161,7 +254,7 @@ class ChatModelAgentLLM:
 
     async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
         messages: list[SystemMessage | HumanMessage] = [
-            SystemMessage(content=SCOPE_SYSTEM),
+            SystemMessage(content=self._prompts.scope),
             HumanMessage(
                 content=f"Conversation so far:\n{context}\n\nLatest user message: {query}"
             ),
@@ -181,7 +274,7 @@ class ChatModelAgentLLM:
             else ""
         )
         messages: list[SystemMessage | HumanMessage] = [
-            SystemMessage(content=PLANNER_SYSTEM),
+            SystemMessage(content=self._prompts.planner),
             HumanMessage(content=f"Conversation so far:\n{context}\n\nUser query: {query}{note}"),
         ]
         try:
@@ -195,7 +288,7 @@ class ChatModelAgentLLM:
         self, query: str, context: str, evidence: list[Evidence]
     ) -> tuple[Answer, Usage]:
         messages: list[SystemMessage | HumanMessage] = [
-            SystemMessage(content=SYNTHESISER_SYSTEM),
+            SystemMessage(content=self._prompts.synthesiser),
             HumanMessage(
                 content=(
                     f"Conversation so far:\n{context}\n\n"

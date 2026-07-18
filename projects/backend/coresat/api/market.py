@@ -69,8 +69,15 @@ async def screener(
 
 
 @router.get("/funds")
-async def funds(request: Request) -> list[FundRow]:
-    return await _analytics(request).funds()
+async def funds(
+    request: Request,
+    compare: Annotated[str | None, Query()] = None,
+) -> list[FundRow]:
+    analytics = _analytics(request)
+    if compare:
+        tickers = [ticker.strip() for ticker in compare.split(",") if ticker.strip()]
+        return await analytics.compare_funds(tickers)
+    return await analytics.funds()
 
 
 @router.get("/ter-drag")

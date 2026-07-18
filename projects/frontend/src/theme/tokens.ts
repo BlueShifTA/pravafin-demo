@@ -1,38 +1,38 @@
+// Brand system aligned to etops.com — violet #8B48FF on lavender/white, Poppins.
 export const appTokens = {
   brand: {
-    primary: "#1d6ef2",
-    primaryStrong: "#0f4fc2",
-    secondary: "#0d9a6f",
-    accent: "#f59e0b",
+    primary: "#8B48FF",
+    primaryStrong: "#7433E8",
+    secondary: "#9E66FF",
+    accent: "#F59E0B",
   },
   status: {
-    success: "#1f9d61",
-    warning: "#b76e00",
-    error: "#b42318",
-    info: "#155eef",
+    success: "#16A34A",
+    warning: "#D97706",
+    error: "#DC2626",
+    info: "#8B48FF",
   },
   surface: {
-    canvas: "#f4f7fb",
-    card: "#ffffff",
-    muted: "#eef3f9",
+    canvas: "#F7F6FF",
+    card: "#FFFFFF",
+    muted: "#F0EFFD",
   },
   border: {
-    subtle: "#d7e2ee",
-    strong: "#9fb1c7",
+    subtle: "#E7E3FB",
+    strong: "#C9BEF2",
   },
   text: {
-    primary: "#0f172a",
-    secondary: "#475467",
-    muted: "#667085",
+    primary: "#1A1633",
+    secondary: "#5B5470",
+    muted: "#8B8398",
   },
   interaction: {
-    hover: "#e7f0ff",
-    pressed: "#d7e8ff",
-    disabled: "#cbd5e1",
+    hover: "#F0EFFD",
+    pressed: "#E3DEFA",
+    disabled: "#D8D3E6",
   },
   typography: {
-    fontFamily:
-      '"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+    fontFamily: '"Poppins", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
     monoFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   },
 } as const;

@@ -1,13 +1,20 @@
 """Portfolio + market analytics — deterministic, computed on the fly from fact tables."""
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+import datetime
+import math
+import statistics
+from collections.abc import Sequence
+
+from sqlalchemy import RowMapping, text
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from coresat.db.session import portfolio_scope
 from coresat.domain.portfolio import (
     AllocationSlice,
     CandleBar,
     FundRow,
+    HealthCriterion,
+    PortfolioHealth,
     PortfolioSummary,
     ProjectionOut,
     ScreenerRow,
@@ -20,11 +27,206 @@ from coresat.services.projection import project
 
 _HORIZONS = (10, 20)
 
+# Health-radar anchors (g_good, g_bad) — lower raw metric is better for all six.
+_ALLOC_GOOD, _ALLOC_BAD = 0.0, 0.10
+_SECTOR_GOOD, _SECTOR_BAD = 0.20, 0.60
+_REGION_GOOD, _REGION_BAD = 0.30, 0.80
+_COST_GOOD, _COST_BAD = 0.001, 0.006
+_OVERLAP_GOOD, _OVERLAP_BAD = 0.0, 0.30
+_VOL_GOOD, _VOL_BAD = 0.10, 0.30
+_TRADING_DAYS = 252
+
+
+def _normalize(label: str | None) -> str:
+    cleaned = (label or "").strip().lower()
+    return cleaned or "unknown"
+
+
+def _linear_score(value: float, g_good: float, g_bad: float) -> float:
+    return max(0.0, min(10.0, 10.0 * (g_bad - value) / (g_bad - g_good)))
+
+
+def _criterion(
+    key: str, label: str, value: float | None, g_good: float, g_bad: float
+) -> HealthCriterion:
+    score = None if value is None else _linear_score(value, g_good, g_bad)
+    green = value is not None and value <= g_good
+    return HealthCriterion(key=key, label=label, value=value, score=score, green=green)
+
+
+def _allocation_value(drift: Sequence[SleeveDrift]) -> float:
+    return max((abs(item.drift) for item in drift), default=0.0)
+
+
+def _sector_value(rows: Sequence[RowMapping]) -> float:
+    satellites = [row for row in rows if row["kind"] == "satellite"]
+    sat_invested = sum(float(row["invested_amount"]) for row in satellites)
+    if sat_invested <= 0:
+        return 0.0
+    weights: dict[str, float] = {}
+    for row in satellites:
+        sector = _normalize(row["instrument_sector"])
+        weights[sector] = weights.get(sector, 0.0) + float(row["invested_amount"]) / sat_invested
+    return max(weights.values(), default=0.0)
+
+
+def _region_value(
+    rows: Sequence[RowMapping], holdings: Sequence[RowMapping], total_invested: float
+) -> float:
+    if total_invested <= 0:
+        return 0.0
+    holdings_by_fund: dict[int, list[RowMapping]] = {}
+    for holding in holdings:
+        holdings_by_fund.setdefault(int(holding["fund_id"]), []).append(holding)
+    weights: dict[str, float] = {}
+    for row in rows:
+        share = float(row["invested_amount"]) / total_invested
+        if row["fund_id"] is not None:
+            fund_holdings = holdings_by_fund.get(int(row["fund_id"]), [])
+            holdings_total = sum(float(h["weight"] or 0.0) for h in fund_holdings)
+            if holdings_total > 0:
+                for holding in fund_holdings:
+                    region = _normalize(holding["region"])
+                    fraction = float(holding["weight"] or 0.0) / holdings_total
+                    weights[region] = weights.get(region, 0.0) + share * fraction
+            else:
+                weights["unknown"] = weights.get("unknown", 0.0) + share
+        elif row["instrument_id"] is not None:
+            region = _normalize(row["instrument_region"])
+            weights[region] = weights.get(region, 0.0) + share
+    return max(weights.values(), default=0.0)
+
+
+def _cost_value(rows: Sequence[RowMapping], total_invested: float) -> float:
+    if total_invested <= 0:
+        return 0.0
+    total = 0.0
+    for row in rows:
+        if row["fund_id"] is not None and row["fund_ter"] is not None:
+            share = float(row["invested_amount"]) / total_invested
+            total += share * float(row["fund_ter"]) / 100.0
+    return total
+
+
+def _overlap_value(
+    rows: Sequence[RowMapping], holdings: Sequence[RowMapping], total_invested: float
+) -> float:
+    if total_invested <= 0:
+        return 0.0
+    core_tickers = {str(holding["ticker"]).strip().upper() for holding in holdings}
+    total = 0.0
+    for row in rows:
+        if row["kind"] == "satellite" and str(row["label"]).strip().upper() in core_tickers:
+            total += float(row["invested_amount"]) / total_invested
+    return total
+
+
+def _volatility_value(rows: Sequence[RowMapping], prices: Sequence[RowMapping]) -> float | None:
+    held: dict[int, float] = {}
+    for row in rows:
+        instrument_id = row["instrument_id"] or row["core_instrument_id"]
+        if instrument_id is not None:
+            held[int(instrument_id)] = held.get(int(instrument_id), 0.0) + float(
+                row["invested_amount"]
+            )
+    closes: dict[int, list[tuple[datetime.date, float]]] = {}
+    for price in prices:
+        closes.setdefault(int(price["instrument_id"]), []).append(
+            (price["date"], float(price["close"]))
+        )
+    returns: dict[int, dict[datetime.date, float]] = {}
+    for instrument_id, series in closes.items():
+        series.sort(key=lambda point: point[0])
+        daily: dict[datetime.date, float] = {}
+        for index in range(1, len(series)):
+            prev_close = series[index - 1][1]
+            if prev_close:
+                daily[series[index][0]] = series[index][1] / prev_close - 1
+        if daily:
+            returns[instrument_id] = daily
+    priced = [instrument_id for instrument_id in held if instrument_id in returns]
+    priced_invested = sum(held[instrument_id] for instrument_id in priced)
+    if not priced or priced_invested <= 0:
+        return None
+    weights = {instrument_id: held[instrument_id] / priced_invested for instrument_id in priced}
+    common: set[datetime.date] = set.intersection(
+        *(set(returns[instrument_id]) for instrument_id in priced)
+    )
+    if len(common) < 2:
+        return None
+    combined = [
+        sum(weights[instrument_id] * returns[instrument_id][day] for instrument_id in priced)
+        for day in sorted(common)
+    ]
+    return statistics.stdev(combined) * math.sqrt(_TRADING_DAYS)
+
+
+def _compute_health(
+    rows: Sequence[RowMapping],
+    holdings: Sequence[RowMapping],
+    prices: Sequence[RowMapping],
+    drift: Sequence[SleeveDrift],
+) -> PortfolioHealth:
+    total_invested = sum(float(row["invested_amount"]) for row in rows)
+    criteria = [
+        _criterion(
+            "allocation_discipline",
+            "Allocation discipline",
+            _allocation_value(drift),
+            _ALLOC_GOOD,
+            _ALLOC_BAD,
+        ),
+        _criterion(
+            "sector_concentration",
+            "Sector concentration",
+            _sector_value(rows),
+            _SECTOR_GOOD,
+            _SECTOR_BAD,
+        ),
+        _criterion(
+            "region_concentration",
+            "Region concentration",
+            _region_value(rows, holdings, total_invested),
+            _REGION_GOOD,
+            _REGION_BAD,
+        ),
+        _criterion(
+            "cost_efficiency",
+            "Cost efficiency",
+            _cost_value(rows, total_invested),
+            _COST_GOOD,
+            _COST_BAD,
+        ),
+        _criterion(
+            "overlap",
+            "Core/satellite overlap",
+            _overlap_value(rows, holdings, total_invested),
+            _OVERLAP_GOOD,
+            _OVERLAP_BAD,
+        ),
+        _criterion(
+            "volatility",
+            "Volatility",
+            _volatility_value(rows, prices),
+            _VOL_GOOD,
+            _VOL_BAD,
+        ),
+    ]
+    scores = [criterion.score for criterion in criteria if criterion.score is not None]
+    headline = round(sum(scores) / len(scores), 1) if scores else 0.0
+    return PortfolioHealth(headline=headline, criteria=criteria)
+
+
 _POSITIONS_SQL = """
 SELECT
     s.kind,
     s.target_weight AS sleeve_target,
     pos.invested_amount,
+    pos.instrument_id,
+    pos.fund_id,
+    fi.id        AS core_instrument_id,
+    i.sector     AS instrument_sector,
+    i.region     AS instrument_region,
     COALESCE(i.ticker, fd.ticker) AS label,
     entry.close  AS entry_close,
     latest.close AS latest_close,
@@ -96,6 +298,14 @@ class AnalyticsService:
             if portfolio is None:
                 return None
             rows = (await conn.execute(text(_POSITIONS_SQL))).mappings().all()
+            core_fund_ids = [int(row["fund_id"]) for row in rows if row["fund_id"] is not None]
+            held_instrument_ids = [
+                int(instrument_id)
+                for row in rows
+                if (instrument_id := row["instrument_id"] or row["core_instrument_id"]) is not None
+            ]
+            holdings = await self._fetch_core_holdings(conn, core_fund_ids)
+            prices = await self._fetch_prices(conn, held_instrument_ids)
 
         allocation: list[AllocationSlice] = []
         weighted_rate = 0.0
@@ -165,7 +375,38 @@ class AnalyticsService:
             allocation=allocation,
             drift=drift,
             projections=projections,
+            health=_compute_health(rows, holdings, prices, drift),
         )
+
+    async def _fetch_core_holdings(
+        self, conn: AsyncConnection, fund_ids: list[int]
+    ) -> list[RowMapping]:
+        if not fund_ids:
+            return []
+        result = await conn.execute(
+            text(
+                "SELECT fund_id, ticker, region, weight FROM fund_holdings "
+                "WHERE fund_id = ANY(:ids)"
+            ),
+            {"ids": fund_ids},
+        )
+        return list(result.mappings().all())
+
+    async def _fetch_prices(
+        self, conn: AsyncConnection, instrument_ids: list[int]
+    ) -> list[RowMapping]:
+        if not instrument_ids:
+            return []
+        result = await conn.execute(
+            text(
+                "SELECT instrument_id, date, close FROM prices_daily "
+                "WHERE instrument_id = ANY(:ids) AND date >= "
+                "(SELECT max(date) FROM prices_daily WHERE instrument_id = ANY(:ids)) - 365 "
+                "ORDER BY instrument_id, date"
+            ),
+            {"ids": instrument_ids},
+        )
+        return list(result.mappings().all())
 
     async def candles(self, ticker: str, days: int | None) -> list[CandleBar]:
         async with self._engine.connect() as conn:
@@ -222,6 +463,18 @@ class AnalyticsService:
                     "SELECT ticker, name, provider, currency, fund_size, ter, dist_yield, "
                     "cagr_5y, cagr_10y FROM funds WHERE valid_to IS NULL ORDER BY ticker"
                 )
+            )
+            return [FundRow(**row) for row in rows.mappings()]
+
+    async def compare_funds(self, tickers: Sequence[str]) -> list[FundRow]:
+        async with self._engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT ticker, name, provider, currency, fund_size, ter, dist_yield, "
+                    "cagr_5y, cagr_10y FROM funds "
+                    "WHERE valid_to IS NULL AND ticker = ANY(:tickers) ORDER BY ticker"
+                ),
+                {"tickers": list(tickers)},
             )
             return [FundRow(**row) for row in rows.mappings()]
 

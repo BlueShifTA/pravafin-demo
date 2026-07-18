@@ -1,0 +1,229 @@
+"""Portfolio draft agent (integration, fake LLM): propose → confirm → create.
+
+Auto-skips when Postgres is down (`just stack-up` to run).
+"""
+
+import asyncio
+import json
+
+import asyncpg
+import pytest
+from fastapi.testclient import TestClient
+
+from coresat.db.schema import apply_schema
+from coresat.domain.agent import Answer, Evidence, Plan, PortfolioDraft, ScopeVerdict
+from coresat.main import app
+from coresat.services.agent.agent import GroundedAgent
+from coresat.services.agent.draft_service import DraftService
+from coresat.services.agent.llm import Usage
+
+ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
+
+_USAGE = Usage(tokens_in=9, tokens_out=4)
+
+_VALID_DRAFT = PortfolioDraft(
+    name="AI Growth",
+    initial_capital=100000,
+    monthly_contribution=500,
+    core_fund_ticker="IWDA.AS",
+    core_weight=0.6,
+    satellites=[
+        {"ticker": "NVDA", "weight": 0.2},
+        {"ticker": "UNH", "weight": 0.2},
+    ],
+)
+
+
+class ScriptedAgentLLM:
+    def __init__(self, in_scope: bool, answers: list[Answer]) -> None:
+        self.in_scope: bool = in_scope
+        self.answers: list[Answer] = answers
+        self.calls: int = 0
+
+    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
+        return ScopeVerdict(in_scope=self.in_scope), _USAGE
+
+    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+        self.calls += 1
+        return Plan(steps=[]), _USAGE
+
+    async def synthesise(
+        self, query: str, context: str, evidence: list[Evidence]
+    ) -> tuple[Answer, Usage]:
+        return self.answers[min(self.calls - 1, len(self.answers) - 1)], _USAGE
+
+
+async def _connect_or_skip() -> asyncpg.Connection:
+    try:
+        return await asyncpg.connect(ADMIN_DSN, timeout=3)
+    except OSError, asyncpg.PostgresError, TimeoutError:
+        pytest.skip("postgres not running — just stack-up")
+
+
+async def _seed() -> None:
+    conn = await _connect_or_skip()
+    await apply_schema(ADMIN_DSN)
+    await conn.execute("TRUNCATE positions, sleeves, portfolios RESTART IDENTITY CASCADE")
+    for ticker, name, kind in (("NVDA", "NVIDIA", "stock"), ("UNH", "UnitedHealth", "stock")):
+        await conn.execute(
+            "INSERT INTO instruments (ticker, name, type) VALUES ($1, $2, $3) "
+            "ON CONFLICT (ticker) DO NOTHING",
+            ticker,
+            name,
+            kind,
+        )
+    await conn.execute(
+        "INSERT INTO funds (ticker, name, ter) VALUES ('IWDA.AS', 'iShares Core MSCI World', 0.2) "
+        "ON CONFLICT (ticker) DO NOTHING"
+    )
+    await conn.close()
+
+
+@pytest.fixture(autouse=True)
+def seeded() -> None:
+    asyncio.run(_seed())
+
+
+def _client(llm: ScriptedAgentLLM) -> TestClient:
+    test_client = TestClient(app)
+    test_client.__enter__()
+    state = test_client.app.state  # type: ignore[union-attr]
+    state.draft_service = DraftService(
+        engine=state.app_engine,
+        agent=GroundedAgent(llm),
+        portfolios=state.portfolio_service,
+        rag_tool=state.rag_tool,
+    )
+    return test_client
+
+
+def _events(body: str) -> list[tuple[str, dict[str, object]]]:
+    events: list[tuple[str, dict[str, object]]] = []
+    for block in body.split("\n\n"):
+        name = data = None
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                name = line.removeprefix("event: ")
+            elif line.startswith("data: "):
+                data = json.loads(line.removeprefix("data: "))
+        if name is not None and isinstance(data, dict):
+            events.append((name, data))
+    return events
+
+
+def test_propose_emits_draft_without_creating() -> None:
+    answer = Answer(text="Here is a portfolio.", action="propose", draft=_VALID_DRAFT)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat", json={"message": "build me a tech portfolio"}
+        )
+        assert response.status_code == 200, response.text
+        events = _events(response.text)
+        answer_event = next(payload for name, payload in events if name == "answer")
+        assert answer_event["action"] == "propose"
+        draft = answer_event["draft"]
+        assert isinstance(draft, dict)
+        assert draft["core_fund_ticker"] == "IWDA.AS"
+        assert {s["ticker"] for s in draft["satellites"]} == {"NVDA", "UNH"}
+        assert not any(name == "created" for name, _ in events)
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_confirm_creates_portfolio_in_database() -> None:
+    answer = Answer(text="Building it now.", action="create")
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat",
+            json={
+                "message": "yes, build it",
+                "history": [{"role": "assistant", "content": "here is a proposal"}],
+                "proposed_draft": _VALID_DRAFT.model_dump(),
+            },
+        )
+        assert response.status_code == 200, response.text
+        events = _events(response.text)
+        created = next(payload for name, payload in events if name == "created")
+        portfolio_id = created["portfolio_id"]
+        assert isinstance(portfolio_id, int)
+
+        listed = client.get("/api/portfolios").json()
+        assert any(p["id"] == portfolio_id and p["name"] == "AI Growth" for p in listed)
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_confirm_flag_creates_deterministically_without_llm() -> None:
+    # the "build it" button sends confirm=true; creation must happen even when
+    # the LLM would never emit a create action (here it only chats)
+    chatty = Answer(text="Sure, what else?", action="chat")
+    llm = ScriptedAgentLLM(in_scope=True, answers=[chatty])
+    client = _client(llm)
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat",
+            json={
+                "message": "Yes, build this portfolio.",
+                "proposed_draft": _VALID_DRAFT.model_dump(),
+                "confirm": True,
+            },
+        )
+        assert response.status_code == 200, response.text
+        events = _events(response.text)
+        assert any(name == "created" for name, _ in events)
+        assert llm.calls == 0  # confirm short-circuits before any LLM turn
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_create_action_without_prior_proposal_does_not_create() -> None:
+    answer = Answer(text="Building it now.", action="create")
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat",
+            json={"message": "just make one", "proposed_draft": None},
+        )
+        assert response.status_code == 200
+        events = _events(response.text)
+        assert not any(name == "created" for name, _ in events)
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_confirm_with_weights_not_summing_to_one_errors() -> None:
+    bad_draft = _VALID_DRAFT.model_copy(update={"satellites": [{"ticker": "NVDA", "weight": 0.1}]})
+    answer = Answer(text="Building it now.", action="create")
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat",
+            json={"message": "yes", "proposed_draft": bad_draft.model_dump()},
+        )
+        assert response.status_code == 200
+        events = _events(response.text)
+        error = next(payload for name, payload in events if name == "error")
+        assert "weights" in str(error["message"]).lower()
+        assert not any(name == "created" for name, _ in events)
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_confirm_with_unknown_ticker_errors() -> None:
+    bad_draft = _VALID_DRAFT.model_copy(update={"satellites": [{"ticker": "ZZZZ", "weight": 0.4}]})
+    answer = Answer(text="Building it now.", action="create")
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat",
+            json={"message": "yes", "proposed_draft": bad_draft.model_dump()},
+        )
+        assert response.status_code == 200
+        events = _events(response.text)
+        error = next(payload for name, payload in events if name == "error")
+        assert "ZZZZ" in str(error["message"])
+        assert not any(name == "created" for name, _ in events)
+    finally:
+        client.__exit__(None, None, None)

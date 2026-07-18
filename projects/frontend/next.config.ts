@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
+// Backend origin the Next server proxies to. Defaults to the local dev backend;
+// in containers set BACKEND_ORIGIN=http://backend:8000 (read at server startup).
+const backend = process.env.BACKEND_ORIGIN ?? "http://localhost:8000";
+
 const nextConfig = {
+  // Emit a self-contained server bundle for a lean production image.
+  output: "standalone",
   experimental: {
     reactCompiler: {
       target: "18",
@@ -12,15 +18,15 @@ const nextConfig = {
     return [
       {
         source: "/health",
-        destination: "http://localhost:8000/health",
+        destination: `${backend}/health`,
       },
       {
         source: "/ready",
-        destination: "http://localhost:8000/ready",
+        destination: `${backend}/ready`,
       },
       {
         source: "/api/:path*",
-        destination: "http://localhost:8000/api/:path*",
+        destination: `${backend}/api/:path*`,
       },
     ];
   },

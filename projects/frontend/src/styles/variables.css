@@ -1,27 +1,28 @@
+/* Brand system aligned to etops.com — violet #8B48FF on lavender/white, Poppins. */
 :root {
-  --color-brand-primary: #1d6ef2;
-  --color-brand-primary-strong: #0f4fc2;
-  --color-brand-secondary: #0d9a6f;
+  --color-brand-primary: #8b48ff;
+  --color-brand-primary-strong: #7433e8;
+  --color-brand-secondary: #9e66ff;
   --color-brand-accent: #f59e0b;
 
-  --color-status-success: #1f9d61;
-  --color-status-warning: #b76e00;
-  --color-status-error: #b42318;
-  --color-status-info: #155eef;
+  --color-status-success: #16a34a;
+  --color-status-warning: #d97706;
+  --color-status-error: #dc2626;
+  --color-status-info: #8b48ff;
 
-  --color-surface-canvas: #f4f7fb;
+  --color-surface-canvas: #f7f6ff;
   --color-surface-card: #ffffff;
-  --color-surface-muted: #eef3f9;
+  --color-surface-muted: #f0effd;
 
-  --color-border-subtle: #d7e2ee;
-  --color-border-strong: #9fb1c7;
+  --color-border-subtle: #e7e3fb;
+  --color-border-strong: #c9bef2;
 
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475467;
-  --color-text-muted: #667085;
+  --color-text-primary: #1a1633;
+  --color-text-secondary: #5b5470;
+  --color-text-muted: #8b8398;
 
   --font-family-sans:
-    "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    "Poppins", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-family-mono:
     "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }

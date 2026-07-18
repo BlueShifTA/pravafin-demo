@@ -15,17 +15,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from coresat.db.session import portfolio_scope
-from coresat.domain.agent import Answer, Evidence, Plan, ToolName
+from coresat.domain.agent import Answer, Evidence, ToolName
 from coresat.domain.chat import AuditEntry, ChatMessageOut, Citation
-from coresat.services.agent.executor import Executor
-from coresat.services.agent.graph import (
-    CANNOT_ANSWER_TEXT,
-    OFF_TOPIC_TEXT,
-    NodeUsage,
-    build_graph,
-    initial_state,
+from coresat.services.agent.agent import (
+    AnswerReady,
+    EvidenceGathered,
+    GroundedAgent,
+    PlanEmitted,
 )
-from coresat.services.agent.llm import AgentLLM
+from coresat.services.agent.graph import CANNOT_ANSWER_TEXT, OFF_TOPIC_TEXT, NodeUsage
 from coresat.services.agent.tools import (
     GetProjectionTool,
     RunSqlTool,
@@ -57,11 +55,17 @@ def _citations_of(answer: Answer, evidence: list[Evidence]) -> list[Citation]:
 
 class CopilotService:
     def __init__(
-        self, engine: AsyncEngine, llm: AgentLLM, summaries: SummaryProvider, model_name: str
+        self,
+        engine: AsyncEngine,
+        agent: GroundedAgent,
+        summaries: SummaryProvider,
+        rag_tool: Tool,
+        model_name: str,
     ) -> None:
         self._engine: AsyncEngine = engine
-        self._llm: AgentLLM = llm
+        self._agent: GroundedAgent = agent
         self._summaries: SummaryProvider = summaries
+        self._rag_tool: Tool = rag_tool
         self.model_name: str = model_name
 
     async def history(self, portfolio_id: int) -> list[ChatMessageOut]:
@@ -131,26 +135,22 @@ class CopilotService:
             ToolName.GET_PROJECTION: GetProjectionTool(
                 summaries=self._summaries, portfolio_id=portfolio_id
             ),
+            ToolName.RAG_SEARCH: self._rag_tool,
         }
-        graph = build_graph(self._llm, Executor(tools))
         answer: Answer | None = None
         evidence: list[Evidence] = []
         usage: list[NodeUsage] = []
         try:
-            async for update in graph.astream(
-                initial_state(message, context), stream_mode="updates"
-            ):
-                for node_state in update.values():
-                    if "usage" in node_state:
-                        usage = list(node_state["usage"])
-                    plan = node_state.get("plan")
-                    if isinstance(plan, Plan):
-                        yield _sse("plan", {"steps": [step.model_dump() for step in plan.steps]})
-                    if "evidence" in node_state:
-                        evidence = list(node_state["evidence"])
-                        yield _sse("evidence", {"items": [item.model_dump() for item in evidence]})
-                    if isinstance(node_state.get("answer"), Answer):
-                        answer = node_state["answer"]
+            async for event in self._agent.run(message, context, tools):
+                if isinstance(event, PlanEmitted):
+                    yield _sse("plan", {"steps": [step.model_dump() for step in event.plan.steps]})
+                elif isinstance(event, EvidenceGathered):
+                    evidence = event.evidence
+                    yield _sse("evidence", {"items": [item.model_dump() for item in evidence]})
+                elif isinstance(event, AnswerReady):
+                    answer = event.answer
+                    evidence = event.evidence
+                    usage = event.usage
         except Exception:
             # reach the client as a typed event, never a half-closed response.
             log.exception("copilot graph failed for portfolio %d", portfolio_id)

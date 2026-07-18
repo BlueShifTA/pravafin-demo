@@ -6,16 +6,19 @@ prompt text, enforces isolation and read-only-ness. get_projection returns
 deterministic analytics output; the LLM never computes a number.
 """
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Protocol
 
-from sqlalchemy import text
+from sqlalchemy import RowMapping, text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from coresat.db.session import portfolio_scope
 from coresat.domain.agent import Evidence, Step
 from coresat.domain.portfolio import PortfolioSummary
+from coresat.domain.rag import RetrievedChunk
+from coresat.services.agent.retrieval import Retriever
 from coresat.services.grounding import six_significant_figures
 
 _MAX_ROWS = 50
@@ -37,6 +40,17 @@ def _render_sql_value(value: object) -> object:
 
 class SummaryProvider(Protocol):
     async def summary(self, portfolio_id: int) -> PortfolioSummary | None: ...
+
+
+def _rows_to_content(rows: Sequence[RowMapping], truncated: bool) -> str:
+    lines = [
+        ", ".join(f"{key}={_render_sql_value(value)}" for key, value in row.items()) for row in rows
+    ]
+    if not lines:
+        lines = ["(no rows)"]
+    if truncated:
+        lines.append(f"(truncated to first {_MAX_ROWS} rows)")
+    return "\n".join(lines)
 
 
 class RunSqlTool:
@@ -61,15 +75,70 @@ class RunSqlTool:
             return Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )
-        lines = [
-            ", ".join(f"{key}={_render_sql_value(value)}" for key, value in row.items())
-            for row in rows
-        ]
-        if not lines:
-            lines = ["(no rows)"]
-        if truncated:
-            lines.append(f"(truncated to first {_MAX_ROWS} rows)")
-        return Evidence(step_id=step.id, source="run_sql", content="\n".join(lines), error=None)
+        return Evidence(
+            step_id=step.id, source="run_sql", content=_rows_to_content(rows, truncated), error=None
+        )
+
+
+class FactSqlTool:
+    """run_sql for pre-creation agents: fact tables only, no portfolio scope.
+
+    Runs without SET LOCAL app.portfolio_id, so RLS policies on portfolio
+    tables return zero rows — the draft agent physically cannot read any
+    existing portfolio's data. Fact tables (funds, instruments, fundamentals,
+    prices) are read-all and remain visible. Same READ ONLY + timeout guards.
+    """
+
+    def __init__(self, engine: AsyncEngine) -> None:
+        self._engine: AsyncEngine = engine
+
+    async def run(self, step: Step) -> Evidence:
+        if step.sql is None or not step.sql.strip():
+            return Evidence(
+                step_id=step.id, source="run_sql", content="", error="step carries no SQL"
+            )
+        try:
+            async with self._engine.connect() as conn, conn.begin():
+                await conn.execute(text("SET LOCAL transaction_read_only = on"))
+                await conn.execute(text(f"SET LOCAL statement_timeout = {_STATEMENT_TIMEOUT_MS}"))
+                result = await conn.execute(text(step.sql))
+                rows = result.mappings().fetchmany(_MAX_ROWS)
+                truncated = result.fetchone() is not None
+        except (DBAPIError, SQLAlchemyError) as exc:
+            cause = getattr(exc, "orig", None) or exc
+            return Evidence(
+                step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
+            )
+        return Evidence(
+            step_id=step.id, source="run_sql", content=_rows_to_content(rows, truncated), error=None
+        )
+
+
+def _chunk_line(chunk: RetrievedChunk) -> str:
+    where = f"{chunk.source_doc} p.{chunk.page}" if chunk.page is not None else chunk.source_doc
+    return f"[{where}] {chunk.text}"
+
+
+class RagSearchTool:
+    """Retrieves ingested-document chunks for the step's question.
+
+    Deterministic (embed → hybrid search → rerank, no LLM). Chunks are rendered
+    with source_doc + page so the synthesiser can cite them; an empty result is
+    reported as a normal 'no documents' evidence, never an error.
+    """
+
+    def __init__(self, retriever: Retriever, k: int) -> None:
+        self._retriever: Retriever = retriever
+        self._k: int = k
+
+    async def run(self, step: Step) -> Evidence:
+        chunks = await self._retriever.retrieve(step.question, self._k)
+        content = (
+            "\n".join(_chunk_line(chunk) for chunk in chunks)
+            if chunks
+            else "(no matching documents)"
+        )
+        return Evidence(step_id=step.id, source="rag_search", content=content, error=None)
 
 
 class GetProjectionTool:

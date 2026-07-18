@@ -89,6 +89,16 @@ class FundRecord(BaseModel):
     cagr_10y: float | None = None
 
 
+class DocChunkRecord(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    source_doc: str = Field(min_length=1)
+    doc_type: str = Field(min_length=1)
+    page: int | None = None
+    chunk_index: int
+    text: str = Field(min_length=1)
+
+
 class RejectedRow(BaseModel):
     row: dict[str, str | None]
     reason: str

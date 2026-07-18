@@ -57,6 +57,19 @@ class ProjectionOut(BaseModel):
     high: float
 
 
+class HealthCriterion(BaseModel):
+    key: str
+    label: str
+    value: float | None
+    score: float | None
+    green: bool
+
+
+class PortfolioHealth(BaseModel):
+    headline: float
+    criteria: list[HealthCriterion]
+
+
 class PortfolioSummary(BaseModel):
     portfolio_id: int
     name: str
@@ -67,6 +80,7 @@ class PortfolioSummary(BaseModel):
     allocation: list[AllocationSlice]
     drift: list[SleeveDrift]
     projections: list[ProjectionOut]
+    health: PortfolioHealth
 
 
 class CandleBar(BaseModel):

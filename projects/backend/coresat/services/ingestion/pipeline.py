@@ -8,16 +8,19 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from coresat.domain.ingestion import IngestReport
+from coresat.services.agent.retrieval import Embedder
 from coresat.services.ingestion.adapters import (
     DailyPricesCsvAdapter,
     FinancialsYearlyCsvAdapter,
     FundamentalsCsvAdapter,
     FundsCsvAdapter,
     ISharesHoldingsCsvAdapter,
+    PdfAdapter,
     SourceAdapter,
     UniverseCsvAdapter,
 )
 from coresat.services.ingestion.loaders import (
+    DocChunkLoader,
     Loader,
     load_financials_yearly,
     load_fundamentals,
@@ -34,7 +37,7 @@ class AdapterEntry:
     loader: Loader
 
 
-def build_registry() -> dict[str, AdapterEntry]:
+def build_registry(embedder: Embedder) -> dict[str, AdapterEntry]:
     entries = (
         AdapterEntry(UniverseCsvAdapter(), load_instruments),
         AdapterEntry(DailyPricesCsvAdapter(), load_prices),
@@ -42,6 +45,7 @@ def build_registry() -> dict[str, AdapterEntry]:
         AdapterEntry(FundamentalsCsvAdapter(), load_fundamentals),
         AdapterEntry(FinancialsYearlyCsvAdapter(), load_financials_yearly),
         AdapterEntry(FundsCsvAdapter(), load_funds),
+        AdapterEntry(PdfAdapter(), DocChunkLoader(embedder)),
     )
     return {entry.adapter.name: entry for entry in entries}
 

@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine, portfolio_scope
+from coresat.domain.agent import Step, ToolName
+from coresat.services.agent.tools import RunSqlTool
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"
@@ -121,3 +123,40 @@ async def test_write_cannot_smuggle_foreign_portfolio_id(
                 ),
                 {"p": p2, "s": s2, "i": inst},
             )
+
+
+async def test_agent_run_sql_tool_is_isolated_per_portfolio(
+    seeded: Seeded, app_engine: AsyncEngine
+) -> None:
+    # The copilot's run_sql tool runs planner-written SQL on the request's
+    # RLS-scoped connection. Even a SELECT over ALL positions returns only the
+    # scoped portfolio's rows — the isolation lives below the tool.
+    p1, p2, _, _ = seeded
+    step = Step(
+        id=1,
+        question="all invested amounts",
+        tool=ToolName.RUN_SQL,
+        sql="SELECT portfolio_id, invested_amount FROM positions ORDER BY portfolio_id",
+    )
+    ev1 = await RunSqlTool(engine=app_engine, portfolio_id=p1).run(step)
+    ev2 = await RunSqlTool(engine=app_engine, portfolio_id=p2).run(step)
+    assert ev1.error is None and ev2.error is None
+    assert f"portfolio_id={p1}" in ev1.content and f"portfolio_id={p2}" not in ev1.content
+    assert f"portfolio_id={p2}" in ev2.content and f"portfolio_id={p1}" not in ev2.content
+
+
+async def test_agent_run_sql_injected_foreign_id_returns_no_rows(
+    seeded: Seeded, app_engine: AsyncEngine
+) -> None:
+    # A prompt-injected WHERE targeting another portfolio still yields nothing —
+    # RLS on the scoped connection filters it out, not the SQL text.
+    p1, p2, _, _ = seeded
+    step = Step(
+        id=1,
+        question="peek at the other portfolio",
+        tool=ToolName.RUN_SQL,
+        sql=f"SELECT invested_amount FROM positions WHERE portfolio_id = {p2}",
+    )
+    evidence = await RunSqlTool(engine=app_engine, portfolio_id=p1).run(step)
+    assert evidence.error is None
+    assert "no rows" in evidence.content.lower()

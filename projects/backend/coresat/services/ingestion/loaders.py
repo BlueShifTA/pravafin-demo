@@ -1,5 +1,6 @@
 """Loaders publish validated records into fact tables (idempotent upserts)."""
 
+import hashlib
 from collections.abc import Sequence
 from typing import Protocol, cast
 
@@ -8,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from coresat.domain.ingestion import (
+    DocChunkRecord,
     FundamentalsRecord,
     FundRecord,
     HoldingRecord,
@@ -15,6 +17,7 @@ from coresat.domain.ingestion import (
     PriceRecord,
     YearlyFinancialsRecord,
 )
+from coresat.services.agent.retrieval import Embedder
 
 _CHUNK = 5000
 
@@ -180,3 +183,37 @@ async def load_funds(conn: AsyncConnection, records: Sequence[BaseModel]) -> Non
         ),
         [record.model_dump() for record in funds],
     )
+
+
+class DocChunkLoader:
+    """Embeds each chunk (Ollama nomic, 768-d) then upserts into doc_chunks.
+
+    Stateful loader — holds the embedder so the (conn, records) Loader contract
+    is unchanged. Embeds one chunk at a time; batch the embed calls if ingestion
+    throughput ever matters.
+    """
+
+    def __init__(self, embedder: Embedder) -> None:
+        self._embedder: Embedder = embedder
+
+    async def __call__(self, conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
+        chunks = cast(Sequence[DocChunkRecord], records)
+        for chunk in chunks:
+            vector = await self._embedder.embed(chunk.text)
+            literal = "[" + ",".join(repr(value) for value in vector) + "]"
+            await conn.execute(
+                text(
+                    "INSERT INTO doc_chunks "
+                    "(source_doc, doc_type, page, chunk_index, text, embedding, checksum) "
+                    "VALUES (:source_doc, :doc_type, :page, :chunk_index, :text, "
+                    "CAST(:embedding AS vector), :checksum) "
+                    "ON CONFLICT (source_doc, chunk_index) DO UPDATE SET "
+                    "text = excluded.text, embedding = excluded.embedding, "
+                    "page = excluded.page, checksum = excluded.checksum"
+                ),
+                {
+                    **chunk.model_dump(),
+                    "embedding": literal,
+                    "checksum": hashlib.sha256(chunk.text.encode()).hexdigest(),
+                },
+            )

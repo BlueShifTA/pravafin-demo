@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AllocationSlice } from "./allocationSlice";
+import type { PortfolioHealth } from "./portfolioHealth";
 import type { ProjectionOut } from "./projectionOut";
 import type { SleeveDrift } from "./sleeveDrift";
 
@@ -18,4 +19,5 @@ export interface PortfolioSummary {
   allocation: AllocationSlice[];
   drift: SleeveDrift[];
   projections: ProjectionOut[];
+  health: PortfolioHealth;
 }

@@ -14,6 +14,7 @@ import pathlib
 from coresat.core.config import get_settings
 from coresat.db.schema import apply_schema
 from coresat.db.session import create_engine, to_async_url
+from coresat.services.agent.retrieval import OllamaEmbedder
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
 
 log = logging.getLogger(__name__)
@@ -59,7 +60,8 @@ async def seed(data_dir: pathlib.Path) -> None:
     settings = get_settings()
     await apply_schema(settings.admin_database_url)
     engine = create_engine(to_async_url(settings.admin_database_url))
-    pipeline = IngestionPipeline(engine=engine, registry=build_registry())
+    embedder = OllamaEmbedder(settings.ollama_base_url, settings.ollama_embed_model)
+    pipeline = IngestionPipeline(engine=engine, registry=build_registry(embedder))
     try:
         stocks_path = data_dir / "fundamentals_stocks.csv"
         financials_path = data_dir / "financials_10y.csv"
@@ -109,6 +111,9 @@ async def seed(data_dir: pathlib.Path) -> None:
                     path.stem,
                     report.status,
                 )
+        for path in sorted((data_dir / "docs").glob("*.pdf")):
+            report = await pipeline.run("pdf", path.read_bytes(), path.name)
+            log.info("%s: %s chunks=%d", path.name, report.status, report.rows_ok)
     finally:
         await engine.dispose()
 

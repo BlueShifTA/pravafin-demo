@@ -6,6 +6,9 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- pgvector powers the RAG document store (doc_chunks.embedding).
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- ── fact tables (shared, read-all) ─────────────────────────────
 
 CREATE TABLE IF NOT EXISTS instruments (
@@ -96,6 +99,28 @@ CREATE TABLE IF NOT EXISTS financials_yearly (
     shares         numeric,
     PRIMARY KEY (instrument_id, fy)
 );
+
+-- RAG document store (shared fact table, read-all). One row per chunk with
+-- page provenance; embedding is nomic-embed-text (768-d). tsv is a generated
+-- full-text column for the BM25 half of hybrid search.
+CREATE TABLE IF NOT EXISTS doc_chunks (
+    id             serial PRIMARY KEY,
+    source_doc     text NOT NULL,
+    doc_type       text NOT NULL,
+    instrument_id  integer REFERENCES instruments(id) ON DELETE CASCADE,
+    fund_id        integer REFERENCES funds(id) ON DELETE CASCADE,
+    page           integer,
+    chunk_index    integer NOT NULL,
+    text           text NOT NULL,
+    embedding      vector(768),
+    tsv            tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
+    checksum       text NOT NULL,
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (source_doc, chunk_index)
+);
+CREATE INDEX IF NOT EXISTS doc_chunks_embedding_idx
+    ON doc_chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS doc_chunks_tsv_idx ON doc_chunks USING gin (tsv);
 
 -- ── portfolio tables (RLS-protected) ───────────────────────────
 
@@ -259,7 +284,7 @@ GRANT EXECUTE ON FUNCTION list_portfolios() TO coresat_app;
 
 GRANT USAGE ON SCHEMA public TO coresat_app;
 GRANT SELECT ON instruments, prices_daily, funds, fund_holdings, fundamentals,
-    financials_yearly TO coresat_app;
+    financials_yearly, doc_chunks TO coresat_app;
 GRANT SELECT, INSERT, UPDATE, DELETE
     ON portfolios, sleeves, positions, llm_audit_log TO coresat_app;
 GRANT SELECT, INSERT, DELETE ON chat_messages TO coresat_app;

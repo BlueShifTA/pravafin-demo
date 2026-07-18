@@ -1,6 +1,9 @@
 """Copilot graph: scope guard, plan-execute-synthesise, grounding validator, one re-plan."""
 
+from langchain_core.output_parsers import PydanticOutputParser
+
 from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
+from coresat.domain.rag import RetrievedChunk
 from coresat.services.agent.executor import Executor
 from coresat.services.agent.graph import (
     CANNOT_ANSWER_TEXT,
@@ -9,6 +12,7 @@ from coresat.services.agent.graph import (
     initial_state,
 )
 from coresat.services.agent.llm import Usage
+from coresat.services.agent.tools import RagSearchTool
 
 _USAGE = Usage(tokens_in=10, tokens_out=5)
 
@@ -56,6 +60,20 @@ def _graph(llm: ScriptedLLM, evidence_content: str = "invested_amount=5000"):
 
 def _sql_plan() -> Plan:
     return Plan(steps=[Step(id=1, question="q", tool=ToolName.RUN_SQL, sql="SELECT 1")])
+
+
+async def test_user_stated_numbers_count_as_grounded() -> None:
+    # capital figures come from the user, not SQL evidence — they must not
+    # trip the fabrication guard
+    answer = Answer(text="With 100000 as capital you invested 5000 so far.")
+    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[answer])
+    state = await _graph(llm).ainvoke(
+        initial_state("I have 100000 to invest, how much placed already?", "")
+    )
+    assert llm.plan_calls == 1
+    assert state["grounded"] is True
+    assert state["answer"] is not None
+    assert state["answer"].text == answer.text
 
 
 async def test_scope_guard_receives_conversation_context() -> None:
@@ -129,3 +147,72 @@ async def test_synthesiser_requested_replan_honoured_once() -> None:
     assert llm.plan_calls == 2
     assert state["answer"] is not None
     assert state["answer"].text == complete.text
+
+
+def test_plan_parser_accepts_bare_step_list() -> None:
+    # qwen frequently returns the steps array directly instead of {"steps": [...]}.
+    # The Plan before-validator must recover it, or the planner degrades to empty.
+    parser: PydanticOutputParser[Plan] = PydanticOutputParser(pydantic_object=Plan)
+    plan = parser.parse('[{"id": 1, "question": "q", "tool": "run_sql", "sql": "SELECT 1"}]')
+    assert len(plan.steps) == 1
+    assert plan.steps[0].tool == ToolName.RUN_SQL
+
+
+def test_plan_parser_still_accepts_wrapped_object() -> None:
+    parser: PydanticOutputParser[Plan] = PydanticOutputParser(pydantic_object=Plan)
+    plan = parser.parse('{"steps": [{"id": 1, "question": "q", "tool": "gap"}]}')
+    assert plan.steps[0].tool == ToolName.GAP
+
+
+class _FakeRetriever:
+    def __init__(self, chunks: list[RetrievedChunk]) -> None:
+        self._chunks: list[RetrievedChunk] = chunks
+
+    async def retrieve(self, query: str, k: int) -> list[RetrievedChunk]:
+        return self._chunks
+
+
+async def test_rag_search_step_routes_to_rag_tool_and_grounds_document_number() -> None:
+    # A planner-chosen rag_search step must reach RagSearchTool, and a figure
+    # quoted from the retrieved chunk must count as grounded (evidence numbers
+    # feed the fabrication guard) — otherwise the answer would be refused.
+    chunk = RetrievedChunk(
+        source_doc="iwda.pdf",
+        page=2,
+        text="The fund holds about 1500 companies across developed markets.",
+        score=0.9,
+    )
+    executor = Executor({ToolName.RAG_SEARCH: RagSearchTool(_FakeRetriever([chunk]), k=4)})
+    plan = Plan(
+        steps=[Step(id=1, question="how many holdings does IWDA have", tool=ToolName.RAG_SEARCH)]
+    )
+    answer = Answer(text="IWDA holds about 1500 companies.", citations=["rag_search#1"])
+    llm = ScriptedLLM(in_scope=True, plans=[plan], answers=[answer])
+
+    state = await build_graph(llm, executor).ainvoke(
+        initial_state("how many holdings does IWDA have?", "")
+    )
+
+    assert llm.plan_calls == 1  # grounded on the first try, no re-plan
+    assert state["grounded"] is True
+    assert state["answer"] is not None
+    assert state["answer"].text == answer.text
+    rag_evidence = [item for item in state["evidence"] if item.source == "rag_search"]
+    assert len(rag_evidence) == 1
+    assert "iwda.pdf p.2" in rag_evidence[0].content
+
+
+async def test_ungrounded_document_number_is_refused() -> None:
+    # A number that appears in NO chunk must not survive — the rag path is held
+    # to the same grounding bar as run_sql.
+    chunk = RetrievedChunk(source_doc="iwda.pdf", page=1, text="A global equity fund.", score=0.5)
+    executor = Executor({ToolName.RAG_SEARCH: RagSearchTool(_FakeRetriever([chunk]), k=4)})
+    plan = Plan(steps=[Step(id=1, question="how many holdings", tool=ToolName.RAG_SEARCH)])
+    fabricated = Answer(text="IWDA holds 4321 companies.", citations=["rag_search#1"])
+    llm = ScriptedLLM(in_scope=True, plans=[plan], answers=[fabricated, fabricated])
+
+    state = await build_graph(llm, executor).ainvoke(initial_state("how many holdings?", ""))
+
+    assert state["answer"] is not None
+    assert state["answer"].text == CANNOT_ANSWER_TEXT
+    assert state["grounded"] is False

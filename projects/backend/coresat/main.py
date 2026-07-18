@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from langchain_ollama import ChatOllama
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
@@ -16,6 +15,7 @@ from coresat.api.analysis import router as analysis_router
 from coresat.api.chat import info_router as copilot_info_router
 from coresat.api.chat import router as chat_router
 from coresat.api.compare import router as compare_router
+from coresat.api.draft import router as draft_router
 from coresat.api.example import router as example_router
 from coresat.api.health import router as health_router
 from coresat.api.ingest import router as ingest_router
@@ -23,8 +23,13 @@ from coresat.api.market import router as market_router
 from coresat.api.portfolios import router as portfolios_router
 from coresat.core.config import get_settings
 from coresat.db.session import create_engine, to_async_url
-from coresat.services.agent.llm import ChatModelAgentLLM
+from coresat.services.agent.agent import GroundedAgent
+from coresat.services.agent.draft_service import DraftService
+from coresat.services.agent.llm import COPILOT_PROMPTS, DRAFT_PROMPTS, ChatModelAgentLLM
+from coresat.services.agent.provider import build_chat_model, model_name_for
+from coresat.services.agent.retrieval import CrossEncoderReranker, OllamaEmbedder, RagRetriever
 from coresat.services.agent.service import CopilotService
+from coresat.services.agent.tools import RagSearchTool
 from coresat.services.analysis import AnalysisService
 from coresat.services.analytics import AnalyticsService
 from coresat.services.comparison import ComparisonService
@@ -37,6 +42,9 @@ log = logging.getLogger(__name__)
 # 413 before any parsing occurs, preventing memory exhaustion from malicious
 # clients sending arbitrarily large JSON payloads.
 _MAX_REQUEST_BYTES = 1 * 1024 * 1024  # 1 MB
+
+# chunks returned by rag_search before the synthesiser reads them
+_RAG_K = 4
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -103,28 +111,46 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # requests; the admin engine writes fact tables (ingestion only).
     app.state.app_engine = create_engine(settings.database_url)
     admin_engine = create_engine(to_async_url(settings.admin_database_url))
-    app.state.ingest_pipeline = IngestionPipeline(engine=admin_engine, registry=build_registry())
+    # Document embeddings for RAG ingestion and retrieval share one embedder so
+    # chunks and queries land in the same vector space.
+    embedder = OllamaEmbedder(settings.ollama_base_url, settings.ollama_embed_model)
+    app.state.ingest_pipeline = IngestionPipeline(
+        engine=admin_engine, registry=build_registry(embedder)
+    )
+    # RAG retrieval reads the shared doc_chunks fact table on the app engine (no
+    # RLS scope needed); both agents share one grounded rag_search tool.
+    rag_tool = RagSearchTool(
+        RagRetriever(app.state.app_engine, embedder, CrossEncoderReranker(settings.rerank_model)),
+        _RAG_K,
+    )
+    app.state.rag_tool = rag_tool
     app.state.portfolio_service = PortfolioService(app.state.app_engine)
     app.state.analytics_service = AnalyticsService(app.state.app_engine)
-    # reasoning off + capped output: qwen3.5 think mode spirals for minutes
-    # on strict formatting prompts; the grounded features need plain JSON,
-    # not chains of thought.
-    llm = ChatOllama(
-        base_url=settings.ollama_base_url,
-        model=settings.ollama_model,
-        temperature=0,
-        reasoning=False,
-        num_predict=3000,
-    )
-    app.state.comparison_service = ComparisonService(engine=app.state.app_engine, llm=llm)
+    # Comparison and single-stock analysis stay on local Ollama — they are
+    # grounded-by-construction (facts injected, output guarded), not agentic.
+    local_llm = build_chat_model("ollama", settings)
+    app.state.comparison_service = ComparisonService(engine=app.state.app_engine, llm=local_llm)
     app.state.analysis_service = AnalysisService(
-        engine=app.state.app_engine, llm=llm, analytics=app.state.analytics_service
+        engine=app.state.app_engine, llm=local_llm, analytics=app.state.analytics_service
     )
+    # Copilot's provider is chosen by config; fails loud here at startup if it
+    # is 'openai' without a key, never mid-chat.
+    copilot_model = build_chat_model(settings.copilot_provider, settings)
     app.state.copilot_service = CopilotService(
         engine=app.state.app_engine,
-        llm=ChatModelAgentLLM(llm),
+        agent=GroundedAgent(ChatModelAgentLLM(copilot_model, COPILOT_PROMPTS)),
         summaries=app.state.analytics_service,
-        model_name=settings.ollama_model,
+        rag_tool=rag_tool,
+        model_name=model_name_for(settings.copilot_provider, settings),
+    )
+    # Draft agent: same GroundedAgent class, its own provider, prompts, and
+    # fact-only tools; creates through the existing PortfolioService path.
+    draft_model = build_chat_model(settings.draft_agent_provider, settings)
+    app.state.draft_service = DraftService(
+        engine=app.state.app_engine,
+        agent=GroundedAgent(ChatModelAgentLLM(draft_model, DRAFT_PROMPTS)),
+        portfolios=app.state.portfolio_service,
+        rag_tool=rag_tool,
     )
 
     log.info("%s started", settings.app_name)
@@ -182,6 +208,7 @@ def create_app() -> FastAPI:
     app.include_router(analysis_router, prefix=settings.api_prefix)
     app.include_router(chat_router, prefix=settings.api_prefix)
     app.include_router(copilot_info_router, prefix=settings.api_prefix)
+    app.include_router(draft_router, prefix=settings.api_prefix)
     return app
 
 
