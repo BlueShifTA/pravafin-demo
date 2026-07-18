@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import NamedTuple, Protocol
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel
 
@@ -245,30 +245,44 @@ class ChatModelAgentLLM:
         self, schema: type[SchemaT], messages: list[SystemMessage | HumanMessage]
     ) -> tuple[SchemaT, Usage]:
         parser: PydanticOutputParser[SchemaT] = PydanticOutputParser(pydantic_object=schema)
-        prompt = [
-            *messages,
-            HumanMessage(
-                content=(
-                    "Respond ONLY with JSON matching this schema — no prose around it.\n"
-                    f"{parser.get_format_instructions()}"
-                )
-            ),
-        ]
+        instruction = HumanMessage(
+            content=(
+                "Respond ONLY with a JSON object that is an INSTANCE of this schema — "
+                "concrete values for the required fields, NOT the schema definition, "
+                "and no prose around it.\n"
+                f"{parser.get_format_instructions()}"
+            )
+        )
+        prompt: list[SystemMessage | HumanMessage | AIMessage] = [*messages, instruction]
         tokens_in = tokens_out = 0
         last_error: Exception | None = None
-        for _ in range(2):  # one retry on malformed output
+        for _ in range(3):  # small local models parrot the schema; corrective retries recover
             message = await self._model.ainvoke(prompt)
             usage = _usage_of(message)
             tokens_in += usage.tokens_in
             tokens_out += usage.tokens_out
+            content = str(message.content)
             try:
-                return parser.parse(str(message.content)), Usage(
-                    tokens_in=tokens_in, tokens_out=tokens_out
-                )
+                return parser.parse(content), Usage(tokens_in=tokens_in, tokens_out=tokens_out)
             except Exception as exc:  # noqa: BLE001 — malformed model output is
-                # routine for small local models; one retry recovers most cases.
+                # routine for small local models. qwen commonly echoes the schema
+                # ($schema/$defs/properties) instead of an instance; feed the bad
+                # output and error back so the retry corrects itself.
                 last_error = exc
-                log.warning("structured output unparsed (%s); retrying", exc)
+                log.warning("structured output unparsed (%s); retrying with correction", exc)
+                prompt = [
+                    *messages,
+                    instruction,
+                    AIMessage(content=content[:800]),
+                    HumanMessage(
+                        content=(
+                            f"That was rejected: {exc}. Do NOT return the schema or an "
+                            'object containing "$schema", "$defs", or "properties". '
+                            "Return ONLY a JSON instance with concrete values for every "
+                            "required field."
+                        )
+                    ),
+                ]
         raise last_error if last_error is not None else RuntimeError("structured call failed")
 
     async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
@@ -316,4 +330,11 @@ class ChatModelAgentLLM:
                 )
             ),
         ]
-        return await self._structured(Answer, messages)
+        try:
+            return await self._structured(Answer, messages)
+        except Exception:
+            # A persistent unparseable synthesis must not crash the SSE stream.
+            # Flag a re-plan so the graph tries again and, if it still cannot
+            # compose, refuses cleanly (give_up) instead of a 500 to the client.
+            log.exception("synthesiser output unusable after retries; requesting re-plan")
+            return Answer(text="", needs_replan=True), Usage(tokens_in=0, tokens_out=0)
