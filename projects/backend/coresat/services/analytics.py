@@ -63,15 +63,36 @@ def _allocation_value(drift: Sequence[SleeveDrift]) -> float:
     return max((abs(item.drift) for item in drift), default=0.0)
 
 
-def _sector_value(rows: Sequence[RowMapping]) -> float:
-    satellites = [row for row in rows if row["kind"] == "satellite"]
-    sat_invested = sum(float(row["invested_amount"]) for row in satellites)
-    if sat_invested <= 0:
+def _sector_value(rows: Sequence[RowMapping], holdings: Sequence[RowMapping]) -> float:
+    # Look-through sector concentration over the WHOLE portfolio: a satellite
+    # contributes its own sector; a core fund contributes its holdings' sectors
+    # (weighted), or — when the fund discloses no holdings (a sector ETF like
+    # SMH) — its own category as a single bucket. So a concentrated core is
+    # penalised instead of being invisible (the old metric saw satellites only).
+    total = sum(float(row["invested_amount"]) for row in rows)
+    if total <= 0:
         return 0.0
+    holdings_by_fund: dict[int, list[RowMapping]] = {}
+    for holding in holdings:
+        holdings_by_fund.setdefault(int(holding["fund_id"]), []).append(holding)
     weights: dict[str, float] = {}
-    for row in satellites:
-        sector = _normalize(row["instrument_sector"])
-        weights[sector] = weights.get(sector, 0.0) + float(row["invested_amount"]) / sat_invested
+    for row in rows:
+        share = float(row["invested_amount"]) / total
+        if row["fund_id"] is not None:
+            fund_holdings = holdings_by_fund.get(int(row["fund_id"]), [])
+            holdings_total = sum(float(holding["weight"] or 0.0) for holding in fund_holdings)
+            if holdings_total > 0:
+                for holding in fund_holdings:
+                    sector = _normalize(holding["sector"])
+                    weights[sector] = weights.get(sector, 0.0) + share * (
+                        float(holding["weight"] or 0.0) / holdings_total
+                    )
+            else:
+                sector = _normalize(row["fund_category"])
+                weights[sector] = weights.get(sector, 0.0) + share
+        elif row["instrument_id"] is not None:
+            sector = _normalize(row["instrument_sector"])
+            weights[sector] = weights.get(sector, 0.0) + share
     return max(weights.values(), default=0.0)
 
 
@@ -257,7 +278,7 @@ def _compute_health(
         _criterion(
             "sector_concentration",
             "Sector concentration",
-            _sector_value(rows),
+            _sector_value(rows, holdings),
             _SECTOR_GOOD,
             _SECTOR_BAD,
         ),
@@ -311,7 +332,8 @@ SELECT
     fu.beta      AS stock_beta,
     fu.cagr_10y  AS stock_cagr,
     fd.cagr_10y  AS fund_cagr,
-    fd.ter       AS fund_ter
+    fd.ter       AS fund_ter,
+    fd.category  AS fund_category
 FROM positions pos
 JOIN sleeves s        ON s.id = pos.sleeve_id
 LEFT JOIN instruments i  ON i.id = pos.instrument_id
@@ -470,7 +492,7 @@ class AnalyticsService:
             return []
         result = await conn.execute(
             text(
-                "SELECT fh.fund_id, fh.ticker, fh.region, fh.weight, "
+                "SELECT fh.fund_id, fh.ticker, fh.region, fh.sector, fh.weight, "
                 "i.id AS instrument_id, fu.beta "
                 "FROM fund_holdings fh "
                 "LEFT JOIN instruments i ON upper(trim(i.ticker)) = upper(trim(fh.ticker)) "

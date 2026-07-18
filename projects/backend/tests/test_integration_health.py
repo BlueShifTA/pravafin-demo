@@ -223,9 +223,10 @@ async def test_full_portfolio_scores_each_criterion(app_engine: AsyncEngine) -> 
     assert crit["allocation_discipline"].score == pytest.approx(5.0)
     assert crit["allocation_discipline"].green is False
 
-    # sector_concentration: two satellites, different sectors, 0.5 invested weight each.
-    assert crit["sector_concentration"].value == pytest.approx(0.5)
-    assert crit["sector_concentration"].score == pytest.approx(2.5)
+    # sector_concentration (look-through): the core basket's IT holding is the
+    # largest single sector across the whole portfolio — 0.6 core * 0.7 = 0.42.
+    assert crit["sector_concentration"].value == pytest.approx(0.42)
+    assert crit["sector_concentration"].score == pytest.approx(4.5)
 
     # region_concentration: us = sat A 0.2 + core 0.6*0.7 = 0.62 (max region).
     assert crit["region_concentration"].value == pytest.approx(0.62)
@@ -307,9 +308,10 @@ async def test_core_only_portfolio_single_sleeve(app_engine: AsyncEngine) -> Non
     assert summary is not None
     crit = _by_key(summary)
 
-    # No satellites: sector concentration and overlap collapse to zero (perfect).
-    assert crit["sector_concentration"].value == pytest.approx(0.0)
-    assert crit["sector_concentration"].score == pytest.approx(10.0)
+    # Look-through: the core basket's largest sector (IT 0.7) is now the sector
+    # concentration — a sector-heavy core is penalised, not scored perfect.
+    assert crit["sector_concentration"].value == pytest.approx(0.7)
+    assert crit["sector_concentration"].score == pytest.approx(0.0)
     assert crit["overlap"].value == pytest.approx(0.0)
     assert crit["overlap"].score == pytest.approx(10.0)
     # region: whole 1.0 core weight through the us 0.7 / europe 0.3 mix -> max 0.7.
