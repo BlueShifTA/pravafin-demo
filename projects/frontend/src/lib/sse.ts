@@ -4,6 +4,26 @@
 
 export type StreamEvent = { event: string; data: Record<string, unknown> };
 
+// Agent runs on a slow reasoning model; allow up to 5 minutes before aborting.
+export const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Map a streamed SSE event to a short human label of what the agent is really
+// doing, from the real plan/evidence events (no fake steps). Returns null for
+// events that carry no progress meaning (answer/created/error).
+export function agentStageLabel(event: string, data: Record<string, unknown>): string | null {
+  if (event === "plan") {
+    const steps = Array.isArray(data.steps) ? (data.steps as Array<Record<string, unknown>>) : [];
+    if (steps.length === 0) return "Thinking…";
+    const tools = new Set(steps.map((step) => String(step.tool)));
+    if (tools.has("run_sql")) return "Querying the database…";
+    if (tools.has("rag_search")) return "Searching documents…";
+    if (tools.has("get_projection")) return "Running the projection…";
+    return "Planning…";
+  }
+  if (event === "evidence") return "Synthesizing the answer…";
+  return null;
+}
+
 export async function* readSseEvents(
   body: ReadableStream<Uint8Array>
 ): AsyncGenerator<StreamEvent> {

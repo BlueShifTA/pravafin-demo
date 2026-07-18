@@ -23,7 +23,7 @@ import {
 } from "@/lib/generated/endpoints";
 import type { ChatMessageOut } from "@/lib/generated/models";
 import { usePortfolio } from "@/lib/portfolio-context";
-import { readSseEvents } from "@/lib/sse";
+import { AGENT_TIMEOUT_MS, agentStageLabel, readSseEvents } from "@/lib/sse";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
 
 const DRAWER_WIDTH = { xs: "85vw", sm: 380 };
@@ -94,33 +94,36 @@ export function CopilotDrawer({ open, onClose }: { open: boolean; onClose: () =>
     setError(null);
     setSending(true);
     setPendingUser(message);
+    setPhase("Routing…");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
     try {
       const response = await fetch(`/api/portfolios/${portfolioId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),
+        signal: controller.signal,
       });
       if (!response.ok || response.body == null) {
         setError(`Chat failed (${response.status}).`);
         return;
       }
       for await (const { event, data } of readSseEvents(response.body)) {
-        if (event === "plan") {
-          const steps = Array.isArray(data.steps) ? data.steps.length : 0;
-          setPhase(`Planning — ${steps} step${steps === 1 ? "" : "s"}…`);
-        } else if (event === "evidence") {
-          const items = Array.isArray(data.items) ? data.items.length : 0;
-          setPhase(`Gathered ${items} evidence item${items === 1 ? "" : "s"} — writing answer…`);
-        } else if (event === "error") {
-          setError(String(data.message ?? "The copilot failed."));
-        }
+        const stage = agentStageLabel(event, data);
+        if (stage != null) setPhase(stage);
+        if (event === "error") setError(String(data.message ?? "The copilot failed."));
       }
       await queryClient.invalidateQueries({
         queryKey: getChatHistoryApiPortfoliosPortfolioIdChatGetQueryKey(portfolioId),
       });
     } catch {
-      setError("Chat failed — is the backend running?");
+      setError(
+        controller.signal.aborted
+          ? "The copilot timed out after 5 minutes."
+          : "Chat failed — is the backend running?"
+      );
     } finally {
+      clearTimeout(timer);
       setSending(false);
       setPhase(null);
       setPendingUser(null);

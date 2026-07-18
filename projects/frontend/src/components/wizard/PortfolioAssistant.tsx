@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import type { ChatTurn, PortfolioDraft } from "@/lib/generated/models";
 import { formatMoney, formatPercent } from "@/lib/format";
-import { readSseEvents } from "@/lib/sse";
+import { AGENT_TIMEOUT_MS, agentStageLabel, readSseEvents } from "@/lib/sse";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
 
 const CONFIRM_MESSAGE = "Yes, build this portfolio.";
@@ -41,26 +41,33 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
   const [draft, setDraft] = useState<PortfolioDraft | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function send(message: string, confirm = false) {
     if (!message.trim() || sending) return;
     setError(null);
     setSending(true);
+    setStage("Routing…");
     const history = turns;
     setTurns([...history, { role: "user", content: message }]);
     setInput("");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
     try {
       const response = await fetch("/api/portfolio-draft/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, history, proposed_draft: draft, confirm }),
+        signal: controller.signal,
       });
       if (!response.ok || response.body == null) {
         setError(`Assistant failed (${response.status}).`);
         return;
       }
       for await (const { event, data } of readSseEvents(response.body)) {
+        const nextStage = agentStageLabel(event, data);
+        if (nextStage != null) setStage(nextStage);
         if (event === "answer") {
           const text = typeof data.text === "string" ? data.text : "";
           setTurns((prev) => [...prev, { role: "assistant", content: text }]);
@@ -75,9 +82,15 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
         }
       }
     } catch {
-      setError("Assistant failed — is the backend running?");
+      setError(
+        controller.signal.aborted
+          ? "The assistant timed out after 5 minutes."
+          : "Assistant failed — is the backend running?"
+      );
     } finally {
+      clearTimeout(timer);
       setSending(false);
+      setStage(null);
     }
   }
 
@@ -128,8 +141,13 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
           </Button>
         )}
         {sending && (
-          <Box sx={{ alignSelf: "flex-start", width: 120 }}>
-            <LinearProgress />
+          <Box sx={{ alignSelf: "flex-start", minWidth: 200 }}>
+            {stage != null && (
+              <Typography variant="caption" color="text.secondary">
+                {stage}
+              </Typography>
+            )}
+            <LinearProgress sx={{ mt: 0.5 }} />
           </Box>
         )}
         {error != null && <Alert severity="error">{error}</Alert>}
