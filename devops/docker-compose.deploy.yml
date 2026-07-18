@@ -64,9 +64,13 @@ services:
       DATABASE_URL: postgresql+asyncpg://coresat_app:coresat_app@postgres:5432/coresat
       ADMIN_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/coresat
       OLLAMA_BASE_URL: http://ollama:11434
-      COPILOT_PROVIDER: ${COPILOT_PROVIDER:-ollama}
-      DRAFT_AGENT_PROVIDER: ${DRAFT_AGENT_PROVIDER:-ollama}
+      # Production runs the agents on OpenAI; Ollama stays only for RAG
+      # embeddings (nomic-embed-text) + the reranker. Override back to ollama
+      # per agent via the shell env / .env if you want the local model.
+      COPILOT_PROVIDER: ${COPILOT_PROVIDER:-openai}
+      DRAFT_AGENT_PROVIDER: ${DRAFT_AGENT_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-nano}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     depends_on:
       postgres:

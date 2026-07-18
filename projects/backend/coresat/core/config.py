@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # OpenAI — only consulted when a provider above is "openai".
     openai_api_key: str = ""
-    openai_model: str = "gpt-5-mini"
+    openai_model: str = "gpt-5-nano"
 
     # Security: explicit CORS origins only — no wildcards.  Wildcards are
     # rejected at startup by create_app().  Add your frontend origin here or
