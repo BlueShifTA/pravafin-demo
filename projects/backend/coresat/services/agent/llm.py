@@ -134,12 +134,17 @@ Decompose the latest user message into the smallest set of atomic
 sub-questions that need fresh data. One tool:
 - "run_sql": one read-only SELECT over shared FACT tables (fill the sql field):
   instruments(id, ticker, name, type, sector, region), type is 'stock' or 'etf';
-  funds(id, ticker, name, ter, fund_size);
+  funds(id, ticker, name, ter, fund_size, cagr_5y, cagr_10y) — the ONLY source
+  of core ETFs; a core pick MUST come from funds, never from instruments;
   fund_holdings(fund_id, ticker, name, weight, sector, region) — one row per
   holding, sector is ON the holding (no join to instruments needed), links to
   funds by fund_id;
   fundamentals(instrument_id, pe_trailing, market_cap, revenue, net_profit,
   roe, ebit, free_cashflow, ...) — links to instruments by instrument_id.
+  cagr_5y, cagr_10y, ter, roe, and weight are DECIMAL FRACTIONS (0.18 = 18%),
+  NOT percents — "10% CAGR" is cagr_10y > 0.10, never > 10. To find growth core
+  ETFs: SELECT ticker, name, cagr_10y FROM funds WHERE cagr_10y > 0.10 ORDER BY
+  cagr_10y DESC.
   ALWAYS verify tickers the user names so the synthesiser has evidence to use
   them: for a named core ETF add `SELECT ticker, name, ter, cagr_10y FROM funds
   WHERE ticker = '<TICKER>'`; for named stocks add `SELECT ticker, name, sector
@@ -201,7 +206,11 @@ First decide what the user actually wants:
   initial_capital 10000, monthly_contribution 0 — the user can change them.
   Only fall back to a question if the evidence has no usable instruments at all.
 Every ETF and stock you name MUST come from the evidence — never invent a
-ticker. Weights must sum to 1 (core_weight + all satellite weights).
+ticker. The core_fund_ticker MUST be an ETF that appears in the funds evidence
+(SELECT ... FROM funds) — NEVER a stock/instrument ticker like HD or AAPL; if no
+fund matched the goal, pick the closest broad-growth ETF from the funds
+evidence (e.g. VOO, QQQ). Satellites are stocks from instruments. Weights must
+sum to 1 (core_weight + all satellite weights).
 
 Actions (set the `action` field):
 - "chat": the user asked a question, or truly nothing can be proposed — reply

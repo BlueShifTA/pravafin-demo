@@ -157,6 +157,55 @@ def test_propose_normalizes_weights_that_do_not_sum_to_one() -> None:
         client.__exit__(None, None, None)
 
 
+def test_propose_resolves_a_core_ticker_missing_its_exchange_suffix() -> None:
+    # the model routinely drops the exchange suffix (IWDA for IWDA.AS); the
+    # resolver must map it back to the real fund so "build it" doesn't fail with
+    # "unknown fund".
+    draft = PortfolioDraft(
+        name="Suffix Fix",
+        initial_capital=10000,
+        monthly_contribution=0,
+        core_fund_ticker="IWDA",
+        core_weight=0.6,
+        satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "UNH", "weight": 0.2}],
+    )
+    answer = Answer(text="Here is a portfolio.", action="propose", draft=draft)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
+        assert response.status_code == 200, response.text
+        events = _events(response.text)
+        emitted = next(payload for name, payload in events if name == "answer")
+        assert emitted["action"] == "propose"
+        assert isinstance(emitted["draft"], dict)
+        assert emitted["draft"]["core_fund_ticker"] == "IWDA.AS"
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_propose_with_unknown_core_falls_back_to_chat() -> None:
+    # a core the DB has no fund for must not be offered as a broken build.
+    draft = PortfolioDraft(
+        name="Bad Core",
+        initial_capital=10000,
+        monthly_contribution=0,
+        core_fund_ticker="ZZZZ",
+        core_weight=1.0,
+        satellites=[],
+    )
+    answer = Answer(text="Here.", action="propose", draft=draft)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
+        assert response.status_code == 200, response.text
+        events = _events(response.text)
+        emitted = next(payload for name, payload in events if name == "answer")
+        assert emitted["action"] == "chat"
+        assert emitted["draft"] is None
+    finally:
+        client.__exit__(None, None, None)
+
+
 def test_confirm_creates_portfolio_in_database() -> None:
     answer = Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))

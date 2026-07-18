@@ -35,16 +35,15 @@ def build_chat_model(provider: str, settings: Settings) -> BaseChatModel:
     if provider == "openai":
         if not settings.openai_api_key:
             raise ValueError("OPENAI_API_KEY is required when an agent provider is 'openai'")
-        # gpt-5 is a reasoning model that, at its default effort, spends 15-30s
-        # of reasoning tokens on EVERY node (scope guard, planner, synthesiser),
-        # which is what makes "routing" feel slow. These are structured,
-        # template-guided tasks, not deep reasoning, so minimal effort keeps them
-        # a few seconds each with no quality loss (the retry loop + SQL sanitizer
-        # are the backstops). temperature is left at the model default — the
-        # gpt-5 family rejects a non-default one.
+        # gpt-5 is a reasoning model; at its default effort it spends 15-30s of
+        # reasoning tokens on EVERY node (scope, planner, synthesiser), which is
+        # what makes routing feel slow. openai_reasoning_effort (default "low")
+        # trades a little of that latency back for the SQL-planning care a small
+        # model needs (scale/typing, core-is-a-fund) — tune via env. temperature
+        # is left at the model default — the gpt-5 family rejects a non-default.
         return ChatOpenAI(
             model=settings.openai_model,
             api_key=SecretStr(settings.openai_api_key),
-            reasoning_effort="minimal",
+            reasoning_effort=settings.openai_reasoning_effort,  # type: ignore[arg-type]
         )
     raise ValueError(f"unknown LLM provider: {provider!r} (use 'ollama' or 'openai')")

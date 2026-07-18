@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # OpenAI — only consulted when a provider above is "openai".
     openai_api_key: str = ""
     openai_model: str = "gpt-5-nano"
+    # gpt-5 reasoning effort: "minimal" (fastest) | "low" | "medium" | "high".
+    # "low" balances routing/SQL-planning quality against latency; "minimal" is
+    # fastest but drifts on scale/typing, "medium"+ for harder planning.
+    openai_reasoning_effort: str = "low"
 
     # Runtime logging — console + a rotating file the whole app dumps into
     # (agent SQL, tool errors, request flow) for offline debugging.
