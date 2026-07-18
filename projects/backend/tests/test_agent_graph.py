@@ -166,6 +166,19 @@ async def test_persistent_fabrication_exhausts_retries_then_refuses() -> None:
     assert state["grounded"] is False
 
 
+async def test_empty_synthesis_refuses_cleanly_never_blank() -> None:
+    # The synthesiser parse-failure fallback returns an empty needs_replan
+    # answer. An empty answer is vacuously "number-grounded", so it must be
+    # forced ungrounded and routed to an honest refusal — never streamed blank.
+    blank = Answer(text="", needs_replan=True)
+    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[blank])
+    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
+    assert state["answer"] is not None
+    assert state["answer"].text == CANNOT_ANSWER_TEXT
+    assert state["grounded"] is False
+    assert llm.plan_calls == MAX_ATTEMPTS
+
+
 class _FailingSqlTool:
     async def run(self, step: Step) -> Evidence:
         return Evidence(

@@ -18,6 +18,9 @@ from logging import handlers
 _LOG_FORMAT = "%(asctime)s %(levelname).4s %(name)s %(message)s"
 _MAX_BYTES = 50 * 1024 * 1024
 _BACKUP_COUNT = 10
+# Names our console handler so setup_logging is idempotent even when the file
+# sink fails to attach (a handler-type check would miss that case).
+_CONSOLE_MARKER = "coresat-console"
 
 log = logging.getLogger(__name__)
 
@@ -61,9 +64,12 @@ def setup_logging(runtime_log_dir: str, level: int) -> None:
     """
     root = logging.getLogger()
     root.setLevel(level)
-    if any(isinstance(handler, handlers.RotatingFileHandler) for handler in root.handlers):
+    # Guard on the named console handler (added first, always), so a second call
+    # never duplicates it even if the file sink failed to attach the first time.
+    if any(handler.name == _CONSOLE_MARKER for handler in root.handlers):
         return
     console = logging.StreamHandler()
+    console.name = _CONSOLE_MARKER
     console.setFormatter(_MetadataFormatter())
     root.addHandler(console)
     log_dir = pathlib.Path(runtime_log_dir).expanduser()

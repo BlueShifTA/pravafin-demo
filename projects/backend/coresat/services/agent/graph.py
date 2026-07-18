@@ -126,9 +126,14 @@ def build_graph(
             if item.error is None
             for number in extract_numbers(item.content)
         }
-        grounded = numbers_grounded(answer.text, grounded_numbers)
+        # An empty answer (e.g. the synthesiser's parse-failure fallback) is never
+        # a valid grounded answer — treat it as ungrounded so it routes to the
+        # rag fallback / honest refusal instead of streaming a blank bubble.
+        grounded = bool(answer.text.strip()) and numbers_grounded(answer.text, grounded_numbers)
         problems: list[str] = []
-        if not grounded:
+        if not answer.text.strip():
+            problems.append("the synthesiser produced no answer text")
+        elif not grounded:
             problems.append("the answer quotes figures that appear in no gathered evidence")
         problems.extend(
             f"{item.source}#{item.step_id} failed: {item.error}"
