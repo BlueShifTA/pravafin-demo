@@ -1,8 +1,11 @@
 """Copilot graph: scope_guard → planner → execute → synthesise → validate.
 
 LLM calls happen in exactly three nodes (scope_guard, planner, synthesiser);
-execution and grounding validation are plain code. One re-plan allowed, then
-an honest refusal — never an ungrounded answer.
+execution and grounding validation are plain code. On any validation problem —
+a fabricated figure, a failed run_sql, or a synthesiser-flagged miss — the
+planner re-plans with the error fed back, up to MAX_ATTEMPTS times. If the data
+still won't come, one rag_fallback tries the document corpus before an honest
+refusal — never an ungrounded answer.
 """
 
 from typing import TypedDict
@@ -10,10 +13,18 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict
+from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
 from coresat.services.agent.executor import Executor
 from coresat.services.agent.llm import AgentLLM
 from coresat.services.grounding import extract_numbers, numbers_grounded
+
+# Planner attempts before falling back to RAG. Each attempt re-plans with the
+# prior error, so retries self-correct instead of repeating identical SQL.
+MAX_ATTEMPTS = 5
+# LangGraph super-step ceiling: MAX_ATTEMPTS loops of 4 nodes + scope + the
+# rag_fallback tail. Set well above the worst path so a legitimate 5th retry is
+# never cut off as a recursion error.
+RECURSION_LIMIT = 60
 
 OFF_TOPIC_TEXT = (
     "I can only help with your portfolio, funds, stocks, and market data. "
@@ -39,7 +50,8 @@ class AgentState(TypedDict):
     evidence: list[Evidence]
     answer: Answer | None
     grounded: bool
-    replanned: bool
+    attempts: int
+    rag_tried: bool
     validation_error: str | None
     usage: list[NodeUsage]
 
@@ -53,7 +65,8 @@ def initial_state(query: str, context: str) -> AgentState:
         evidence=[],
         answer=None,
         grounded=False,
-        replanned=False,
+        attempts=0,
+        rag_tried=False,
         validation_error=None,
         usage=[],
     )
@@ -82,6 +95,7 @@ def build_graph(
         plan, usage = await llm.plan(state["query"], state["context"], state["validation_error"])
         return {
             "plan": plan,
+            "attempts": state["attempts"] + 1,
             "usage": _spent(state, "planner", usage.tokens_in, usage.tokens_out),
         }
 
@@ -128,8 +142,21 @@ def build_graph(
             "validation_error": "; ".join(problems) if problems else None,
         }
 
-    async def mark_replanned(state: AgentState) -> dict[str, object]:  # noqa: ARG001
-        return {"replanned": True}
+    async def rag_fallback(state: AgentState) -> dict[str, object]:
+        # SQL retries are exhausted and the answer still isn't grounded. Before
+        # refusing, try the shared document corpus: one rag_search on the user's
+        # question, then synthesise from whatever it returns. Both agents wire a
+        # rag_search tool, so this always has somewhere to look.
+        fallback_plan = Plan(steps=[Step(id=1, question=state["query"], tool=ToolName.RAG_SEARCH)])
+        evidence = await executor.execute(fallback_plan)
+        answer, usage = await llm.synthesise(state["query"], state["context"], evidence)
+        return {
+            "plan": fallback_plan,
+            "evidence": evidence,
+            "answer": answer,
+            "rag_tried": True,
+            "usage": _spent(state, "rag_fallback", usage.tokens_in, usage.tokens_out),
+        }
 
     async def give_up(state: AgentState) -> dict[str, object]:  # noqa: ARG001
         return {"answer": Answer(text=CANNOT_ANSWER_TEXT)}
@@ -139,10 +166,13 @@ def build_graph(
         return "plan" if scope is not None and scope.in_scope else "refuse"
 
     def route_after_validate(state: AgentState) -> str:
-        answer = state["answer"]
-        wants_retry = not state["grounded"] or (answer is not None and answer.needs_replan)
-        if wants_retry and not state["replanned"]:
+        # Any validation problem (fabricated figure, failed run_sql, or a
+        # synthesiser-flagged miss) is a retry trigger — retrying with the error
+        # fed back is how the planner gets the data it missed.
+        if state["validation_error"] is not None and state["attempts"] < MAX_ATTEMPTS:
             return "replan"
+        if not state["grounded"] and not state["rag_tried"]:
+            return "rag_fallback"
         if not state["grounded"]:
             return "give_up"
         return "end"
@@ -154,7 +184,7 @@ def build_graph(
     builder.add_node("execute", execute)
     builder.add_node("synthesise", synthesise)
     builder.add_node("validate", validate)
-    builder.add_node("mark_replanned", mark_replanned)
+    builder.add_node("rag_fallback", rag_fallback)
     builder.add_node("give_up", give_up)
     builder.add_edge(START, "scope_guard")
     builder.add_conditional_edges(
@@ -167,8 +197,8 @@ def build_graph(
     builder.add_conditional_edges(
         "validate",
         route_after_validate,
-        {"replan": "mark_replanned", "give_up": "give_up", "end": END},
+        {"replan": "planner", "rag_fallback": "rag_fallback", "give_up": "give_up", "end": END},
     )
-    builder.add_edge("mark_replanned", "planner")
+    builder.add_edge("rag_fallback", "validate")
     builder.add_edge("give_up", END)
     return builder.compile()

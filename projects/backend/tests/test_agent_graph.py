@@ -1,13 +1,17 @@
-"""Copilot graph: scope guard, plan-execute-synthesise, grounding validator, one re-plan."""
+"""Copilot graph: scope guard, plan-execute-synthesise, grounding validator,
+self-correcting retry loop (max 5) and rag fallback."""
 
 from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.runnables import RunnableConfig
 
 from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
 from coresat.domain.rag import RetrievedChunk
 from coresat.services.agent.executor import Executor
 from coresat.services.agent.graph import (
     CANNOT_ANSWER_TEXT,
+    MAX_ATTEMPTS,
     OFF_TOPIC_TEXT,
+    RECURSION_LIMIT,
     build_graph,
     initial_state,
 )
@@ -15,6 +19,8 @@ from coresat.services.agent.llm import Usage
 from coresat.services.agent.tools import RagSearchTool
 
 _USAGE = Usage(tokens_in=10, tokens_out=5)
+# Loops past the default LangGraph recursion ceiling (25) reach it at 5 attempts.
+_CONFIG: RunnableConfig = {"recursion_limit": RECURSION_LIMIT}
 
 
 class ScriptedLLM:
@@ -129,14 +135,101 @@ async def test_fabricated_number_triggers_one_replan_then_success() -> None:
     assert state["grounded"] is True
 
 
-async def test_still_fabricated_after_replan_gives_honest_refusal() -> None:
+async def test_retries_until_a_grounded_answer_arrives() -> None:
+    # Three fabricated attempts, then an honest one: the loop keeps re-planning
+    # (well under the cap) and returns the first grounded answer.
     fabricated = Answer(text="You invested 123456 in total.")
-    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated, fabricated])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""))
-    assert llm.plan_calls == 2
+    honest = Answer(text="You invested 5000 in total.")
+    llm = ScriptedLLM(
+        in_scope=True, plans=[_sql_plan()], answers=[fabricated, fabricated, fabricated, honest]
+    )
+    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
+    assert llm.plan_calls == 4
+    assert state["answer"] is not None
+    assert state["answer"].text == honest.text
+    assert state["grounded"] is True
+    # every retry after the first carries the prior error back to the planner
+    assert llm.replan_errors_seen[0] is None
+    assert all(err is not None for err in llm.replan_errors_seen[1:4])
+
+
+async def test_persistent_fabrication_exhausts_retries_then_refuses() -> None:
+    # Nothing ever grounds the figure and the only tool is run_sql, so the rag
+    # fallback finds no corpus either — after MAX_ATTEMPTS self-correcting tries
+    # the agent refuses rather than emit a fabricated number.
+    fabricated = Answer(text="You invested 123456 in total.")
+    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated])
+    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
+    assert llm.plan_calls == MAX_ATTEMPTS
     assert state["answer"] is not None
     assert state["answer"].text == CANNOT_ANSWER_TEXT
     assert state["grounded"] is False
+
+
+class _FailingSqlTool:
+    async def run(self, step: Step) -> Evidence:
+        return Evidence(
+            step_id=step.id,
+            source="run_sql",
+            content="",
+            error="SQL failed: syntax error near 'SELET'",
+        )
+
+
+class _EvidenceAwareLLM:
+    """Fabricates a figure while only failing SQL evidence is present, but
+    answers honestly the moment rag_search evidence appears — models a planner
+    whose SQL keeps erroring while the document fallback succeeds."""
+
+    def __init__(self) -> None:
+        self.plan_calls: int = 0
+        self.replan_errors_seen: list[str | None] = []
+
+    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
+        return ScopeVerdict(in_scope=True), _USAGE
+
+    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+        self.replan_errors_seen.append(replan_error)
+        self.plan_calls += 1
+        return _sql_plan(), _USAGE
+
+    async def synthesise(
+        self, query: str, context: str, evidence: list[Evidence]
+    ) -> tuple[Answer, Usage]:
+        rag = [item for item in evidence if item.source == "rag_search" and item.error is None]
+        if rag:
+            return (
+                Answer(
+                    text="From the documents: IWDA is a global equity fund.",
+                    citations=["rag_search#1"],
+                ),
+                _USAGE,
+            )
+        return Answer(text="You invested 123456 in total."), _USAGE
+
+
+async def test_sql_failures_fall_back_to_rag_after_exhausting_retries() -> None:
+    # The run_sql tool errors on every attempt; after the retry cap the graph
+    # runs one rag_search fallback and answers from the retrieved document.
+    chunk = RetrievedChunk(
+        source_doc="iwda.pdf", page=1, text="IWDA is a global equity fund.", score=0.9
+    )
+    executor = Executor(
+        {
+            ToolName.RUN_SQL: _FailingSqlTool(),
+            ToolName.RAG_SEARCH: RagSearchTool(_FakeRetriever([chunk]), k=4),
+        }
+    )
+    llm = _EvidenceAwareLLM()
+    state = await build_graph(llm, executor).ainvoke(
+        initial_state("how much invested?", ""), _CONFIG
+    )
+    assert llm.plan_calls == MAX_ATTEMPTS  # SQL retried to the cap, then stopped
+    assert all(err is not None for err in llm.replan_errors_seen[1:])  # errors fed back
+    assert state["answer"] is not None
+    assert state["answer"].text.startswith("From the documents")
+    assert state["grounded"] is True
+    assert any(item.source == "rag_search" for item in state["evidence"])
 
 
 async def test_synthesiser_requested_replan_honoured_once() -> None:
@@ -211,7 +304,9 @@ async def test_ungrounded_document_number_is_refused() -> None:
     fabricated = Answer(text="IWDA holds 4321 companies.", citations=["rag_search#1"])
     llm = ScriptedLLM(in_scope=True, plans=[plan], answers=[fabricated, fabricated])
 
-    state = await build_graph(llm, executor).ainvoke(initial_state("how many holdings?", ""))
+    state = await build_graph(llm, executor).ainvoke(
+        initial_state("how many holdings?", ""), _CONFIG
+    )
 
     assert state["answer"] is not None
     assert state["answer"].text == CANNOT_ANSWER_TEXT

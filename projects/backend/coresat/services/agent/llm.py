@@ -15,6 +15,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel
 
 from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict
+from coresat.services.agent.sql_templates import templates_block
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +32,8 @@ weather, sports, news, coding, or general trivia.
 When in doubt, mark the message in scope — a wrong refusal is worse than a
 wasted lookup, and every answer is validated against real data anyway."""
 
-PLANNER_SYSTEM = """You are the planner of a portfolio-manager copilot.
+PLANNER_SYSTEM = (
+    """You are the planner of a portfolio-manager copilot.
 Decompose the user query into the smallest set of atomic sub-questions.
 Assign each sub-question exactly one tool:
 - "run_sql": read data with one SELECT statement (fill the step's sql field).
@@ -54,6 +56,9 @@ Assign each sub-question exactly one tool:
   search phrase in the step's question; leave sql empty. Use only for
   document/qualitative questions, never for figures the SQL tables hold.
 - "gap": no tool can answer this; flag it instead of guessing.
+"""
+    + templates_block()
+    + """
 Express ordering via depends_on (ids of prerequisite steps). Independent
 steps must not declare dependencies. Plan from the LATEST user query alone —
 earlier failed or unanswered turns in the conversation must not stop you from
@@ -70,6 +75,7 @@ Examples:
   {"steps": [{"id": 1, "question": "NVDA sector", "tool": "run_sql",
               "sql": "SELECT sector FROM instruments WHERE ticker = 'NVDA'"}]}
 - "Hi" -> {"steps": []}"""
+)
 
 SYNTHESISER_SYSTEM = """You are the synthesiser of a portfolio-manager copilot.
 Combine the evidence into one answer to the user query.
@@ -113,7 +119,8 @@ that helps build it; plus greetings and confirmations ("yes, build it", "no,
 change X"). Off-topic: weather, sports, news, coding, general trivia.
 When in doubt, mark in scope."""
 
-DRAFT_PLANNER_SYSTEM = """You are the planner of a portfolio-building assistant.
+DRAFT_PLANNER_SYSTEM = (
+    """You are the planner of a portfolio-building assistant.
 Decompose the latest user message into the smallest set of atomic
 sub-questions that need fresh data. One tool:
 - "run_sql": one read-only SELECT over shared FACT tables (fill the sql field):
@@ -141,13 +148,25 @@ sub-questions that need fresh data. One tool:
   instruments i ON i.id = fundamentals.instrument_id. Never emit window
   functions (RANK/ROW_NUMBER) in a WHERE clause — use ORDER BY + LIMIT.
 - "rag_search": search ingested documents (fund factsheets, prospectuses,
-  reports) for qualitative facts not in the tables — a fund's strategy,
-  objective, or risk language. Put the search phrase in the step's question,
-  leave sql empty. Never use it for tickers, weights, or fundamentals.
-- "gap": no SQL can answer it; flag instead of guessing.
-Greetings, confirmations, and pure preference questions need zero steps —
+  KIDs, reports) for qualitative facts not in the tables — a fund's strategy,
+  objective, mandate, benchmark, replication method, risk language, currency
+  hedging, dividend/distribution policy, or ESG approach; anything a document
+  "says", "describes", or "explains". Put the search phrase in the step's
+  question, leave sql empty. Never use it for tickers, weights, or fundamentals.
+- "gap": neither run_sql NOR rag_search can answer it — a fact in no table and
+  no document. A question about what a fund does, says, or describes is
+  rag_search, never gap.
+Any request to LIST, SHOW, RANK, or FIND the stocks, ETFs, funds, or sectors
+available — "what stocks do you have", "top 5 stocks", "which funds", "list
+sectors" — is a DATA question: emit a run_sql step, never answer it from memory
+and never claim you lack database access.
+"""
+    + templates_block()
+    + """
+Only greetings, confirmations, and pure preference questions need zero steps —
 return an empty steps list. Plan from the LATEST message; do not re-run
 queries already answered earlier in the conversation."""
+)
 
 DRAFT_SYNTHESISER_SYSTEM = """You are the synthesiser of a portfolio-building
 assistant. You help the user design a Core-Satellite portfolio and, only on

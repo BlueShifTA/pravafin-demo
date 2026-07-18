@@ -121,7 +121,7 @@ question → scope_guard ──in scope──→ orchestrator ──docs──�
 - **RAG pipeline** (deterministic once triggered, `services/agent/retrieval.py`): embed (nomic-embed-text, 768-d) → hybrid recall (pgvector cosine ∪ tsvector full-text, each probes a pool) → rerank (fastembed ONNX cross-encoder, no torch) → top-k chunks with page provenance. Ingestion (`pdf` adapter → per-page chunks → embed → `doc_chunks`) shares the same embedder so chunks and queries land in one space.
 - **Query data tools**: `run_sql` (read-only role, RLS-scoped connection) · `get_projection` (analytics service — LLM never computes numbers).
 - **synthesiser**: LLM writes answer with [n] citations from evidence.
-- **grounding_validator** (plain code): every numeric claim must appear in SQL rows / projections / chunks → fail injects errors → one re-plan → still failing → "cannot answer from data".
+- **grounding_validator** (plain code): every numeric claim must appear in SQL rows / projections / chunks → any validation problem (fabricated figure, failed run_sql, flagged miss) injects errors → planner re-plans with the error fed back, up to 5 attempts → still failing → one `rag_search` fallback over the document corpus → still failing → "cannot answer from data". Planner SQL is guided by the vetted patterns in `services/agent/sql_templates.py`.
 - LLM calls in exactly 3 nodes: scope_guard, orchestrator, synthesiser. Everything else deterministic.
 - Every node logs to `llm_audit_log` → per-run cost trace in copilot footer.
 

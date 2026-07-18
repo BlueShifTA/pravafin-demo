@@ -11,7 +11,12 @@ from typing import NamedTuple
 
 from coresat.domain.agent import Answer, Evidence, Plan, ToolName
 from coresat.services.agent.executor import Executor
-from coresat.services.agent.graph import NodeUsage, build_graph, initial_state
+from coresat.services.agent.graph import (
+    RECURSION_LIMIT,
+    NodeUsage,
+    build_graph,
+    initial_state,
+)
 from coresat.services.agent.llm import AgentLLM
 from coresat.services.agent.tools import Tool
 
@@ -44,7 +49,11 @@ class GroundedAgent:
         answer: Answer | None = None
         evidence: list[Evidence] = []
         usage: list[NodeUsage] = []
-        async for update in graph.astream(initial_state(query, context), stream_mode="updates"):
+        async for update in graph.astream(
+            initial_state(query, context),
+            stream_mode="updates",
+            config={"recursion_limit": RECURSION_LIMIT},
+        ):
             for node_state in update.values():
                 if "usage" in node_state:
                     usage = list(node_state["usage"])
