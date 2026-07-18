@@ -34,6 +34,11 @@ RUN useradd --create-home --uid 10001 app
 COPY --from=build --chown=app:app /app/.venv /app/.venv
 COPY --from=build --chown=app:app /app/projects/backend /app/projects/backend
 USER app
+# Bake the cross-encoder reranker (fastembed ONNX) into the image so the first
+# rag_search never downloads it from HuggingFace at runtime (unauthenticated →
+# rate-limited, adds seconds). Downloads into FASTEMBED_CACHE_PATH as `app`.
+# Must match core/config.py rerank_model default.
+RUN python -c "from fastembed.rerank.cross_encoder import TextCrossEncoder; TextCrossEncoder(model_name='Xenova/ms-marco-MiniLM-L-6-v2')"
 EXPOSE 8000
 # Bind 0.0.0.0 so the container is reachable; the reverse proxy / compose network
 # is the trust boundary (the app default binds loopback only).
