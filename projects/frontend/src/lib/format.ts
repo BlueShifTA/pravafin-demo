@@ -44,6 +44,15 @@ export function formatMoney(value: number | null | undefined, currency: string =
     : formatters.plain.format(value);
 }
 
+// Always-compact currency for chart axis ticks: 500K, 2M, 142B (never truncated).
+export function formatMoneyCompact(
+  value: number | null | undefined,
+  currency: string = "USD"
+): string {
+  if (value == null) return "n/a";
+  return currencyFormatter(currency).compact.format(value);
+}
+
 export function formatPercent(fraction: number | null | undefined, decimals: number = 1): string {
   if (fraction == null) return "n/a";
   return `${(fraction * 100).toFixed(decimals)}%`;

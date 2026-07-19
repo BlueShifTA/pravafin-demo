@@ -1,12 +1,13 @@
 "use client";
 
-import { Card, CardContent, Grid, Stack, Typography } from "@mui/material";
+import { Box, Card, CardContent, Grid, Stack, Typography } from "@mui/material";
 import { LineChart, PieChart, RadarChart } from "@mui/x-charts";
 
 import type { PortfolioHealth } from "@/lib/generated/models/portfolioHealth";
 
 import { PageShell } from "@/components/layout/PageShell";
-import { formatPercent } from "@/lib/format";
+import { Spinner } from "@/components/ui/feedback/Spinner";
+import { formatMoneyCompact, formatPercent } from "@/lib/format";
 import { usePortfolioSummaryApiPortfoliosPortfolioIdSummaryGet } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
@@ -104,13 +105,22 @@ export default function DashboardPage() {
   });
   const summary = summaryQuery.data?.status === 200 ? summaryQuery.data.data : null;
 
-  if (portfolioId === null || !summary) {
+  if (portfolioId === null) {
     return (
       <PageShell
         title="Dashboard"
         description="Pick a portfolio in the top bar — or create one via the wizard."
       >
         <Typography color="text.secondary">No portfolio selected.</Typography>
+      </PageShell>
+    );
+  }
+  if (summaryQuery.isLoading || !summary) {
+    return (
+      <PageShell title="Dashboard" description="Loading portfolio…">
+        <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+          <Spinner size={40} />
+        </Box>
       </PageShell>
     );
   }
@@ -161,10 +171,10 @@ export default function DashboardPage() {
             sub={p20 ? `${formatPercent(p20.annual_rate)}/yr` : undefined}
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <HealthCard health={summary.health} />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card variant="outlined" sx={{ height: "100%" }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -194,7 +204,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={12}>
           <Card variant="outlined" sx={{ height: "100%" }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -203,6 +213,7 @@ export default function DashboardPage() {
               <LineChart
                 height={300}
                 xAxis={[{ data: horizonYears, label: "years" }]}
+                yAxis={[{ valueFormatter: (value: number | null) => formatMoneyCompact(value) }]}
                 series={[
                   { data: expected, label: "expected" },
                   { data: low, label: "low (−1%)" },

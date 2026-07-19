@@ -18,8 +18,9 @@ import { LineChart } from "@mui/x-charts";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
+import { CandleChartCard } from "@/components/market/CandleChartCard";
 import { Spinner } from "@/components/ui/feedback/Spinner";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format";
 import {
   useFundsApiMarketFundsGet,
   useTerDragApiMarketTerDragGet,
@@ -55,7 +56,7 @@ export default function CorePage() {
   return (
     <PageShell
       title="Core sleeve — fund comparison"
-      description="Click a fund to simulate 20-year TER drag on $10,000."
+      description="Click a fund for its price chart and a 20-year TER-drag simulation on $10,000."
     >
       <Stack spacing={2}>
         <Card variant="outlined">
@@ -110,6 +111,7 @@ export default function CorePage() {
             </TableContainer>
           </CardContent>
         </Card>
+        <CandleChartCard ticker={selected} />
         {dragQuery.isLoading && (
           <Card variant="outlined">
             <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -130,6 +132,7 @@ export default function CorePage() {
               <LineChart
                 height={320}
                 xAxis={[{ data: drag.series.map((point) => point.year), label: "year" }]}
+                yAxis={[{ valueFormatter: (value: number | null) => formatMoneyCompact(value) }]}
                 series={[
                   {
                     data: drag.series.map((point) => point.gross_value),

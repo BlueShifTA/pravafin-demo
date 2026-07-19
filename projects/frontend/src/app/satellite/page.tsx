@@ -31,15 +31,13 @@ import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
 import { Spinner } from "@/components/ui/feedback/Spinner";
-import { CandleChart } from "@/components/market/CandleChart";
+import { CandleChartCard } from "@/components/market/CandleChartCard";
 import { CompareDialog } from "@/components/market/CompareDialog";
 import { FinancialsPanel } from "@/components/market/FinancialsPanel";
 import { StockAnalysisDialog } from "@/components/market/StockAnalysisDialog";
 import { formatNumber, formatPercent } from "@/lib/format";
 import {
-  useCandlesApiMarketCandlesTickerGet,
   useFinancialsApiMarketFinancialsTickerGet,
-  useIndicatorsApiMarketIndicatorsTickerGet,
   useScreenerApiMarketScreenerGet,
 } from "@/lib/generated/endpoints";
 
@@ -62,23 +60,9 @@ export default function SatellitePage() {
   const isLoading = screenerQuery.isLoading;
   const [selection, setSelection] = useState<string[]>([]);
   const [chartTicker, setChartTicker] = useState<string | null>(null);
-  const [chartDays, setChartDays] = useState<number>(365);
-  const [chartInterval, setChartInterval] = useState<string>("1D");
   const [compareOpen, setCompareOpen] = useState(false);
   const [analysisTicker, setAnalysisTicker] = useState<string | null>(null);
 
-  const barsQuery = useCandlesApiMarketCandlesTickerGet(
-    chartTicker ?? "",
-    { days: chartDays, interval: chartInterval },
-    { query: { enabled: chartTicker !== null } }
-  );
-  const bars = barsQuery.data?.status === 200 ? barsQuery.data.data : null;
-  const indicatorsQuery = useIndicatorsApiMarketIndicatorsTickerGet(
-    chartTicker ?? "",
-    { days: chartDays },
-    { query: { enabled: chartTicker !== null } }
-  );
-  const indicators = indicatorsQuery.data?.status === 200 ? indicatorsQuery.data.data : undefined;
   const financialsQuery = useFinancialsApiMarketFinancialsTickerGet(chartTicker ?? "", {
     query: { enabled: chartTicker !== null },
   });
@@ -222,66 +206,7 @@ export default function SatellitePage() {
             />
           </CardContent>
         </Card>
-        {chartTicker && barsQuery.isLoading && (
-          <Card variant="outlined">
-            <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-              <Spinner size={32} />
-            </CardContent>
-          </Card>
-        )}
-        {chartTicker && bars && (
-          <Card variant="outlined">
-            <CardContent>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 1.5,
-                  mb: 1,
-                }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {chartTicker} — candles
-                </Typography>
-                <Stack direction="row" spacing={1.5}>
-                  <FormControl size="small" sx={{ minWidth: 110 }}>
-                    <InputLabel id="chart-range">Range</InputLabel>
-                    <Select
-                      labelId="chart-range"
-                      label="Range"
-                      value={chartDays}
-                      onChange={(event) => setChartDays(Number(event.target.value))}
-                    >
-                      <MenuItem value={365}>1 year</MenuItem>
-                      <MenuItem value={730}>2 years</MenuItem>
-                      <MenuItem value={1825}>5 years</MenuItem>
-                      <MenuItem value={3650}>10 years</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <FormControl size="small" sx={{ minWidth: 110 }}>
-                    <InputLabel id="chart-interval">Interval</InputLabel>
-                    <Select
-                      labelId="chart-interval"
-                      label="Interval"
-                      value={chartInterval}
-                      onChange={(event) => setChartInterval(String(event.target.value))}
-                    >
-                      <MenuItem value="1D">1 day</MenuItem>
-                      <MenuItem value="7D">7 days</MenuItem>
-                      <MenuItem value="1M">1 month</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Stack>
-              </Box>
-              <CandleChart
-                bars={bars}
-                indicators={chartInterval === "1D" ? indicators : undefined}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <CandleChartCard ticker={chartTicker} />
         {chartTicker && financialsQuery.isLoading && (
           <Card variant="outlined">
             <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
