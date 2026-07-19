@@ -8,6 +8,7 @@ import type { ChatTurn, PortfolioDraft } from "@/lib/generated/models";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { AGENT_TIMEOUT_MS, agentStageLabel, readSseEvents } from "@/lib/sse";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
+import { Markdown } from "@/components/ui/Markdown";
 
 const CONFIRM_MESSAGE = "Yes, build this portfolio.";
 
@@ -125,9 +126,13 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
               color: turn.role === "user" ? "primary.contrastText" : "text.primary",
             }}
           >
-            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-              {turn.content}
-            </Typography>
+            {turn.role === "user" ? (
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                {turn.content}
+              </Typography>
+            ) : (
+              <Markdown>{turn.content}</Markdown>
+            )}
           </Box>
         ))}
         {draft != null && <DraftCard draft={draft} />}
