@@ -11,31 +11,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from coresat.api.analysis import router as analysis_router
-from coresat.api.chat import info_router as copilot_info_router
-from coresat.api.chat import router as chat_router
-from coresat.api.compare import router as compare_router
-from coresat.api.draft import router as draft_router
-from coresat.api.example import router as example_router
-from coresat.api.health import router as health_router
-from coresat.api.ingest import router as ingest_router
-from coresat.api.market import router as market_router
-from coresat.api.portfolios import router as portfolios_router
-from coresat.core.config import get_settings
-from coresat.core.observability import setup_logging
-from coresat.db.session import create_engine, to_async_url
-from coresat.services.agent.agent import GroundedAgent
-from coresat.services.agent.draft_service import DraftService
-from coresat.services.agent.llm import COPILOT_PROMPTS, DRAFT_PROMPTS, ChatModelAgentLLM
-from coresat.services.agent.provider import build_chat_model, model_name_for
-from coresat.services.agent.retrieval import CrossEncoderReranker, OllamaEmbedder, RagRetriever
-from coresat.services.agent.service import CopilotService
-from coresat.services.agent.tools import RagSearchTool
-from coresat.services.analysis import AnalysisService
-from coresat.services.analytics import AnalyticsService
-from coresat.services.comparison import ComparisonService
-from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
-from coresat.services.portfolios import PortfolioService
+import coresat.api as capi
+import coresat.core as csc
+import coresat.db as csdb
+import coresat.services as css
+import coresat.services.agent as csa
+import coresat.services.ingestion as csi
 
 log = logging.getLogger(__name__)
 
@@ -98,7 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     placeholder startup/shutdown logic here with your own resource initialisation
     (database connections, caches, LLM clients, etc.).
     """
-    settings = get_settings()
+    settings = csc.get_settings()
 
     # Scaling: install a bounded thread pool so run_in_executor calls cannot
     # spawn an unbounded number of OS threads under concurrent load.
@@ -110,46 +91,48 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # Two engines by privilege: the app engine is RLS-enforced for portfolio
     # requests; the admin engine writes fact tables (ingestion only).
-    app.state.app_engine = create_engine(settings.database_url)
-    admin_engine = create_engine(to_async_url(settings.admin_database_url))
+    app.state.app_engine = csdb.create_engine(settings.database_url)
+    admin_engine = csdb.create_engine(csdb.to_async_url(settings.admin_database_url))
     # Document embeddings for RAG ingestion and retrieval share one embedder so
     # chunks and queries land in the same vector space.
-    embedder = OllamaEmbedder(settings.ollama_base_url, settings.ollama_embed_model)
-    app.state.ingest_pipeline = IngestionPipeline(
-        engine=admin_engine, registry=build_registry(embedder)
+    embedder = csa.OllamaEmbedder(settings.ollama_base_url, settings.ollama_embed_model)
+    app.state.ingest_pipeline = csi.IngestionPipeline(
+        engine=admin_engine, registry=csi.build_registry(embedder)
     )
     # RAG retrieval reads the shared doc_chunks fact table on the app engine (no
     # RLS scope needed); both agents share one grounded rag_search tool.
-    rag_tool = RagSearchTool(
-        RagRetriever(app.state.app_engine, embedder, CrossEncoderReranker(settings.rerank_model)),
+    rag_tool = csa.RagSearchTool(
+        csa.RagRetriever(
+            app.state.app_engine, embedder, csa.CrossEncoderReranker(settings.rerank_model)
+        ),
         _RAG_K,
     )
     app.state.rag_tool = rag_tool
-    app.state.portfolio_service = PortfolioService(app.state.app_engine)
-    app.state.analytics_service = AnalyticsService(app.state.app_engine)
+    app.state.portfolio_service = css.PortfolioService(app.state.app_engine)
+    app.state.analytics_service = css.AnalyticsService(app.state.app_engine)
     # Comparison and single-stock analysis stay on local Ollama — they are
     # grounded-by-construction (facts injected, output guarded), not agentic.
-    local_llm = build_chat_model("ollama", settings)
-    app.state.comparison_service = ComparisonService(engine=app.state.app_engine, llm=local_llm)
-    app.state.analysis_service = AnalysisService(
+    local_llm = csa.build_chat_model("ollama", settings)
+    app.state.comparison_service = css.ComparisonService(engine=app.state.app_engine, llm=local_llm)
+    app.state.analysis_service = css.AnalysisService(
         engine=app.state.app_engine, llm=local_llm, analytics=app.state.analytics_service
     )
     # Copilot's provider is chosen by config; fails loud here at startup if it
     # is 'openai' without a key, never mid-chat.
-    copilot_model = build_chat_model(settings.copilot_provider, settings)
-    app.state.copilot_service = CopilotService(
+    copilot_model = csa.build_chat_model(settings.copilot_provider, settings)
+    app.state.copilot_service = csa.CopilotService(
         engine=app.state.app_engine,
-        agent=GroundedAgent(ChatModelAgentLLM(copilot_model, COPILOT_PROMPTS)),
+        agent=csa.GroundedAgent(csa.ChatModelAgentLLM(copilot_model, csa.COPILOT_PROMPTS)),
         summaries=app.state.analytics_service,
         rag_tool=rag_tool,
-        model_name=model_name_for(settings.copilot_provider, settings),
+        model_name=csa.model_name_for(settings.copilot_provider, settings),
     )
     # Draft agent: same GroundedAgent class, its own provider, prompts, and
     # fact-only tools; creates through the existing PortfolioService path.
-    draft_model = build_chat_model(settings.draft_agent_provider, settings)
-    app.state.draft_service = DraftService(
+    draft_model = csa.build_chat_model(settings.draft_agent_provider, settings)
+    app.state.draft_service = csa.DraftService(
         engine=app.state.app_engine,
-        agent=GroundedAgent(ChatModelAgentLLM(draft_model, DRAFT_PROMPTS)),
+        agent=csa.GroundedAgent(csa.ChatModelAgentLLM(draft_model, csa.DRAFT_PROMPTS)),
         portfolios=app.state.portfolio_service,
         rag_tool=rag_tool,
     )
@@ -163,8 +146,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()
-    setup_logging(settings.runtime_log_dir, logging.INFO)
+    settings = csc.get_settings()
+    csc.setup_logging(settings.runtime_log_dir, logging.INFO)
 
     # Reject wildcard CORS to prevent credential leakage.  In any deployment
     # a wildcard would accept cross-origin requests from any domain.  Explicit
@@ -201,16 +184,16 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestSizeLimitMiddleware)
     # Attach a unique request ID for log tracing — registered last = outermost.
     app.add_middleware(RequestIDMiddleware)
-    app.include_router(health_router)
-    app.include_router(example_router, prefix=settings.api_prefix)
-    app.include_router(ingest_router, prefix=settings.api_prefix)
-    app.include_router(portfolios_router, prefix=settings.api_prefix)
-    app.include_router(market_router, prefix=settings.api_prefix)
-    app.include_router(compare_router, prefix=settings.api_prefix)
-    app.include_router(analysis_router, prefix=settings.api_prefix)
-    app.include_router(chat_router, prefix=settings.api_prefix)
-    app.include_router(copilot_info_router, prefix=settings.api_prefix)
-    app.include_router(draft_router, prefix=settings.api_prefix)
+    app.include_router(capi.health_router)
+    app.include_router(capi.example_router, prefix=settings.api_prefix)
+    app.include_router(capi.ingest_router, prefix=settings.api_prefix)
+    app.include_router(capi.portfolios_router, prefix=settings.api_prefix)
+    app.include_router(capi.market_router, prefix=settings.api_prefix)
+    app.include_router(capi.compare_router, prefix=settings.api_prefix)
+    app.include_router(capi.analysis_router, prefix=settings.api_prefix)
+    app.include_router(capi.chat_router, prefix=settings.api_prefix)
+    app.include_router(capi.copilot_info_router, prefix=settings.api_prefix)
+    app.include_router(capi.draft_router, prefix=settings.api_prefix)
     return app
 
 

@@ -5,7 +5,7 @@ import pathlib
 
 import pytest
 
-from coresat.core.observability import setup_logging, with_runtime_logging
+import coresat.core as csc
 
 
 def test_setup_logging_writes_records_to_the_runtime_dir(tmp_path: pathlib.Path) -> None:
@@ -17,7 +17,7 @@ def test_setup_logging_writes_records_to_the_runtime_dir(tmp_path: pathlib.Path)
     saved = root.handlers[:]
     root.handlers.clear()
     try:
-        setup_logging(str(tmp_path), logging.INFO)
+        csc.setup_logging(str(tmp_path), logging.INFO)
         logging.getLogger("coresat.smoke").warning("run_sql failed: boom | sql=SELECT 1")
         for handler in root.handlers:
             handler.flush()
@@ -32,7 +32,7 @@ def test_setup_logging_writes_records_to_the_runtime_dir(tmp_path: pathlib.Path)
 def test_with_runtime_logging_emits_a_timing_line(caplog: pytest.LogCaptureFixture) -> None:
     with (
         caplog.at_level(logging.DEBUG, logger="coresat.core.observability"),
-        with_runtime_logging("unit-block"),
+        csc.with_runtime_logging("unit-block"),
     ):
         pass
     assert any("unit-block" in record.message for record in caplog.records)

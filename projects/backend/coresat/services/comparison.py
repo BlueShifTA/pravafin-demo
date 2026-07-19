@@ -9,7 +9,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.domain.comparison import ComparisonResult, ComparisonVerdicts
+import coresat.domain as csd
 from coresat.services.grounding import (
     FabricatedNumberError,
     fetch_facts,
@@ -37,7 +37,7 @@ _PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-def _prose(verdicts: ComparisonVerdicts) -> str:
+def _prose(verdicts: csd.ComparisonVerdicts) -> str:
     per_ticker = [
         line for assessment in verdicts.per_ticker for line in assessment.pros + assessment.cons
     ]
@@ -53,11 +53,11 @@ class ComparisonService:
     def __init__(self, engine: AsyncEngine, llm: BaseChatModel) -> None:
         self._engine = engine
         self._llm = llm
-        self._parser: PydanticOutputParser[ComparisonVerdicts] = PydanticOutputParser(
-            pydantic_object=ComparisonVerdicts
+        self._parser: PydanticOutputParser[csd.ComparisonVerdicts] = PydanticOutputParser(
+            pydantic_object=csd.ComparisonVerdicts
         )
 
-    async def compare(self, tickers: list[str], portfolio_id: int) -> ComparisonResult:
+    async def compare(self, tickers: list[str], portfolio_id: int) -> csd.ComparisonResult:
         facts_rows = await fetch_facts(self._engine, tickers)
         facts_table, fact_numbers = render_facts(facts_rows)
         prompt = _PROMPT.format_messages(
@@ -81,6 +81,6 @@ class ComparisonService:
                 "comparison rejected: output contained fabricated numbers not present "
                 "in the facts table"
             )
-        return ComparisonResult(
+        return csd.ComparisonResult(
             tickers=tickers, model=model_name_of(self._llm), **verdicts.model_dump()
         )

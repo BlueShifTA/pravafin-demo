@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.db.session import portfolio_scope
+import coresat.db as csdb
 from coresat.services.portfolios import UnknownTickerError
 
 # numbers below this are allowed unmatched: ordinals, ratios, percentages the
@@ -169,7 +169,7 @@ async def write_audit(
     tokens_in: int,
     tokens_out: int,
 ) -> None:
-    async with portfolio_scope(engine, portfolio_id) as conn:
+    async with csdb.portfolio_scope(engine, portfolio_id) as conn:
         await conn.execute(
             text(
                 "INSERT INTO llm_audit_log (portfolio_id, feature, model, tokens_in, "

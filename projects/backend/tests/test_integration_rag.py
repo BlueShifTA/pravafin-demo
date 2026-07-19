@@ -11,9 +11,8 @@ import asyncpg
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.db.schema import apply_schema
-from coresat.db.session import create_engine
-from coresat.services.agent.retrieval import RagRetriever
+import coresat.db as csdb
+import coresat.services.agent as csa
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 ADMIN_SQLA_URL = "postgresql+asyncpg://postgres:postgres@localhost:5434/coresat_test"
@@ -78,17 +77,17 @@ async def _insert_chunk(
 
 
 @pytest.fixture
-async def retriever() -> AsyncIterator[RagRetriever]:
+async def retriever() -> AsyncIterator[csa.RagRetriever]:
     admin = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await admin.execute("TRUNCATE doc_chunks RESTART IDENTITY CASCADE")
-    engine: AsyncEngine = create_engine(ADMIN_SQLA_URL)
-    yield RagRetriever(engine=engine, embedder=FakeEmbedder(), reranker=FakeReranker())
+    engine: AsyncEngine = csdb.create_engine(ADMIN_SQLA_URL)
+    yield csa.RagRetriever(engine=engine, embedder=FakeEmbedder(), reranker=FakeReranker())
     await engine.dispose()
     await admin.close()
 
 
-async def test_hybrid_pool_reranks_and_trims_to_k(retriever: RagRetriever) -> None:
+async def test_hybrid_pool_reranks_and_trims_to_k(retriever: csa.RagRetriever) -> None:
     admin = await _connect_or_skip()
     # F: fts-only (NULL embedding, matches "dividend"); V: vec-only (embedding ==
     # query, no query term); N: neither strong (orthogonal embedding, no term).
@@ -105,11 +104,11 @@ async def test_hybrid_pool_reranks_and_trims_to_k(retriever: RagRetriever) -> No
     assert "noise.pdf" not in {r.source_doc for r in results}
 
 
-async def test_empty_store_returns_empty(retriever: RagRetriever) -> None:
+async def test_empty_store_returns_empty(retriever: csa.RagRetriever) -> None:
     assert await retriever.retrieve("anything", k=5) == []
 
 
-async def test_chunk_matching_both_signals_appears_once(retriever: RagRetriever) -> None:
+async def test_chunk_matching_both_signals_appears_once(retriever: csa.RagRetriever) -> None:
     # A chunk that both scores in the vector pool AND matches full-text must
     # come back once — the pool UNION dedups ids (UNION ALL would double it).
     admin = await _connect_or_skip()
@@ -123,7 +122,7 @@ async def test_chunk_matching_both_signals_appears_once(retriever: RagRetriever)
     assert {r.source_doc for r in results} == {"both.pdf", "earnings.pdf"}
 
 
-async def test_k_larger_than_pool_returns_all_available(retriever: RagRetriever) -> None:
+async def test_k_larger_than_pool_returns_all_available(retriever: csa.RagRetriever) -> None:
     admin = await _connect_or_skip()
     await _insert_chunk(admin, "a.pdf", 0, "dividend note", QVEC, 1)
     await _insert_chunk(admin, "b.pdf", 0, "earnings note", ORTHO, 1)

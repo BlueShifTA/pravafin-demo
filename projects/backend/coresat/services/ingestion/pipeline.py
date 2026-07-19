@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.domain.ingestion import IngestReport
-from coresat.services.agent.retrieval import Embedder
+import coresat.domain as csd
+import coresat.services.agent as csa
 from coresat.services.ingestion.adapters import (
     DailyPricesCsvAdapter,
     FinancialsYearlyCsvAdapter,
@@ -37,7 +37,7 @@ class AdapterEntry:
     loader: Loader
 
 
-def build_registry(embedder: Embedder) -> dict[str, AdapterEntry]:
+def build_registry(embedder: csa.Embedder) -> dict[str, AdapterEntry]:
     entries = (
         AdapterEntry(UniverseCsvAdapter(), load_instruments),
         AdapterEntry(DailyPricesCsvAdapter(), load_prices),
@@ -57,7 +57,7 @@ class IngestionPipeline:
 
     async def run(
         self, adapter_name: str, payload: bytes, source_ref: str | None = None
-    ) -> IngestReport:
+    ) -> csd.IngestReport:
         """Ingest one payload. Same payload twice → 'skipped' (checksum idempotency)."""
         entry = self._registry[adapter_name]
         version = entry.adapter.version
@@ -76,7 +76,7 @@ class IngestionPipeline:
                 )
             ).first()
             if done is not None:
-                return IngestReport(
+                return csd.IngestReport(
                     run_id=done.id,
                     source=adapter_name,
                     status="skipped",
@@ -137,7 +137,7 @@ class IngestionPipeline:
                     "run_id": run_id,
                 },
             )
-        return IngestReport(
+        return csd.IngestReport(
             run_id=run_id,
             source=adapter_name,
             status=status,  # type: ignore[arg-type]

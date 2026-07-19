@@ -2,12 +2,12 @@
 
 import asyncio
 
-from coresat.core.config import get_settings
+import coresat.core as csc
 from coresat.db.schema import apply_schema
 
 
 def main() -> None:
-    asyncio.run(apply_schema(get_settings().admin_database_url))
+    asyncio.run(apply_schema(csc.get_settings().admin_database_url))
     print("schema applied")  # noqa: T201 — CLI feedback, not app logging
 
 

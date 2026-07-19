@@ -16,10 +16,8 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.db.session import portfolio_scope
-from coresat.domain.agent import Evidence, Step
-from coresat.domain.portfolio import PortfolioSummary
-from coresat.domain.rag import RetrievedChunk
+import coresat.db as csdb
+import coresat.domain as csd
 from coresat.services.agent.retrieval import Retriever
 from coresat.services.grounding import six_significant_figures
 
@@ -57,7 +55,7 @@ def _prepare_sql(raw: str | None) -> tuple[str | None, str | None]:
 
 
 class Tool(Protocol):
-    async def run(self, step: Step) -> Evidence: ...
+    async def run(self, step: csd.Step) -> csd.Evidence: ...
 
 
 def _render_sql_value(value: object) -> object:
@@ -70,7 +68,7 @@ def _render_sql_value(value: object) -> object:
 
 
 class SummaryProvider(Protocol):
-    async def summary(self, portfolio_id: int) -> PortfolioSummary | None: ...
+    async def summary(self, portfolio_id: int) -> csd.PortfolioSummary | None: ...
 
 
 def _rows_to_content(rows: Sequence[RowMapping], truncated: bool) -> str:
@@ -89,13 +87,13 @@ class RunSqlTool:
         self._engine: AsyncEngine = engine
         self._portfolio_id: int = portfolio_id
 
-    async def run(self, step: Step) -> Evidence:
+    async def run(self, step: csd.Step) -> csd.Evidence:
         sql, error = _prepare_sql(step.sql)
         if sql is None:
-            return Evidence(step_id=step.id, source="run_sql", content="", error=error)
+            return csd.Evidence(step_id=step.id, source="run_sql", content="", error=error)
         log.info("run_sql (portfolio %d): %s", self._portfolio_id, sql)
         try:
-            async with portfolio_scope(self._engine, self._portfolio_id) as conn:
+            async with csdb.portfolio_scope(self._engine, self._portfolio_id) as conn:
                 await conn.execute(text("SET LOCAL transaction_read_only = on"))
                 await conn.execute(text(f"SET LOCAL statement_timeout = {_STATEMENT_TIMEOUT_MS}"))
                 result = await conn.execute(text(sql))
@@ -104,10 +102,10 @@ class RunSqlTool:
         except (DBAPIError, SQLAlchemyError) as exc:
             cause = getattr(exc, "orig", None) or exc
             log.warning("run_sql failed: %s | sql=%s", cause, sql)
-            return Evidence(
+            return csd.Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )
-        return Evidence(
+        return csd.Evidence(
             step_id=step.id, source="run_sql", content=_rows_to_content(rows, truncated), error=None
         )
 
@@ -124,10 +122,10 @@ class FactSqlTool:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine: AsyncEngine = engine
 
-    async def run(self, step: Step) -> Evidence:
+    async def run(self, step: csd.Step) -> csd.Evidence:
         sql, error = _prepare_sql(step.sql)
         if sql is None:
-            return Evidence(step_id=step.id, source="run_sql", content="", error=error)
+            return csd.Evidence(step_id=step.id, source="run_sql", content="", error=error)
         log.info("run_sql (facts): %s", sql)
         try:
             async with self._engine.connect() as conn, conn.begin():
@@ -139,15 +137,15 @@ class FactSqlTool:
         except (DBAPIError, SQLAlchemyError) as exc:
             cause = getattr(exc, "orig", None) or exc
             log.warning("run_sql failed: %s | sql=%s", cause, sql)
-            return Evidence(
+            return csd.Evidence(
                 step_id=step.id, source="run_sql", content="", error=f"SQL failed: {cause}"
             )
-        return Evidence(
+        return csd.Evidence(
             step_id=step.id, source="run_sql", content=_rows_to_content(rows, truncated), error=None
         )
 
 
-def _chunk_line(chunk: RetrievedChunk) -> str:
+def _chunk_line(chunk: csd.RetrievedChunk) -> str:
     where = f"{chunk.source_doc} p.{chunk.page}" if chunk.page is not None else chunk.source_doc
     return f"[{where}] {chunk.text}"
 
@@ -164,14 +162,14 @@ class RagSearchTool:
         self._retriever: Retriever = retriever
         self._k: int = k
 
-    async def run(self, step: Step) -> Evidence:
+    async def run(self, step: csd.Step) -> csd.Evidence:
         chunks = await self._retriever.retrieve(step.question, self._k)
         content = (
             "\n".join(_chunk_line(chunk) for chunk in chunks)
             if chunks
             else "(no matching documents)"
         )
-        return Evidence(step_id=step.id, source="rag_search", content=content, error=None)
+        return csd.Evidence(step_id=step.id, source="rag_search", content=content, error=None)
 
 
 class GetProjectionTool:
@@ -179,10 +177,10 @@ class GetProjectionTool:
         self._summaries: SummaryProvider = summaries
         self._portfolio_id: int = portfolio_id
 
-    async def run(self, step: Step) -> Evidence:
+    async def run(self, step: csd.Step) -> csd.Evidence:
         summary = await self._summaries.summary(self._portfolio_id)
         if summary is None:
-            return Evidence(
+            return csd.Evidence(
                 step_id=step.id,
                 source="get_projection",
                 content="",
@@ -201,6 +199,6 @@ class GetProjectionTool:
                 f"low={projection.low:.2f}, high={projection.high:.2f}, "
                 f"annual_rate={projection.annual_rate * 100:.2f}%"
             )
-        return Evidence(
+        return csd.Evidence(
             step_id=step.id, source="get_projection", content="\n".join(lines), error=None
         )

@@ -3,18 +3,17 @@
 Pure unit tests with a scripted retriever — no DB, no models.
 """
 
-from coresat.domain.agent import Step, ToolName
-from coresat.domain.rag import RetrievedChunk
-from coresat.services.agent.tools import RagSearchTool
+import coresat.domain as csd
+import coresat.services.agent as csa
 
 
 class _FakeRetriever:
-    def __init__(self, chunks: list[RetrievedChunk]) -> None:
-        self._chunks: list[RetrievedChunk] = chunks
+    def __init__(self, chunks: list[csd.RetrievedChunk]) -> None:
+        self._chunks: list[csd.RetrievedChunk] = chunks
         self.seen_query: str | None = None
         self.seen_k: int | None = None
 
-    async def retrieve(self, query: str, k: int) -> list[RetrievedChunk]:
+    async def retrieve(self, query: str, k: int) -> list[csd.RetrievedChunk]:
         self.seen_query = query
         self.seen_k = k
         return self._chunks
@@ -23,13 +22,17 @@ class _FakeRetriever:
 async def test_rag_search_formats_chunks_with_provenance() -> None:
     retriever = _FakeRetriever(
         [
-            RetrievedChunk(source_doc="iwda.pdf", page=3, text="tracks the MSCI World", score=0.9),
-            RetrievedChunk(source_doc="notes.pdf", page=None, text="undated note", score=0.4),
+            csd.RetrievedChunk(
+                source_doc="iwda.pdf", page=3, text="tracks the MSCI World", score=0.9
+            ),
+            csd.RetrievedChunk(source_doc="notes.pdf", page=None, text="undated note", score=0.4),
         ]
     )
-    tool = RagSearchTool(retriever, k=4)
+    tool = csa.RagSearchTool(retriever, k=4)
 
-    evidence = await tool.run(Step(id=1, question="what does IWDA track", tool=ToolName.RAG_SEARCH))
+    evidence = await tool.run(
+        csd.Step(id=1, question="what does IWDA track", tool=csd.ToolName.RAG_SEARCH)
+    )
 
     assert retriever.seen_query == "what does IWDA track"  # step.question is the query
     assert retriever.seen_k == 4
@@ -42,9 +45,9 @@ async def test_rag_search_formats_chunks_with_provenance() -> None:
 
 async def test_rag_search_empty_reports_no_documents() -> None:
     retriever = _FakeRetriever([])
-    tool = RagSearchTool(retriever, k=4)
+    tool = csa.RagSearchTool(retriever, k=4)
 
-    evidence = await tool.run(Step(id=2, question="anything", tool=ToolName.RAG_SEARCH))
+    evidence = await tool.run(csd.Step(id=2, question="anything", tool=csd.ToolName.RAG_SEARCH))
 
     assert evidence.error is None
     assert "no" in evidence.content.lower()

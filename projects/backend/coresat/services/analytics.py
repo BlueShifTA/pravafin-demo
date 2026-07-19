@@ -9,21 +9,8 @@ from dataclasses import dataclass
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from coresat.db.session import portfolio_scope
-from coresat.domain.portfolio import (
-    AllocationSlice,
-    CandleBar,
-    FundRow,
-    HealthCriterion,
-    PortfolioHealth,
-    PortfolioSummary,
-    ProjectionOut,
-    ScreenerRow,
-    SleeveDrift,
-    TerDrag,
-    TerDragPoint,
-    YearlyFinancials,
-)
+import coresat.db as csdb
+import coresat.domain as csd
 from coresat.services.projection import project
 
 _HORIZONS = (10, 20)
@@ -53,13 +40,13 @@ def _linear_score(value: float, g_good: float, g_bad: float) -> float:
 
 def _criterion(
     key: str, label: str, value: float | None, g_good: float, g_bad: float
-) -> HealthCriterion:
+) -> csd.HealthCriterion:
     score = None if value is None else _linear_score(value, g_good, g_bad)
     green = value is not None and value <= g_good
-    return HealthCriterion(key=key, label=label, value=value, score=score, green=green)
+    return csd.HealthCriterion(key=key, label=label, value=value, score=score, green=green)
 
 
-def _allocation_value(drift: Sequence[SleeveDrift]) -> float:
+def _allocation_value(drift: Sequence[csd.SleeveDrift]) -> float:
     return max((abs(item.drift) for item in drift), default=0.0)
 
 
@@ -264,8 +251,8 @@ def _compute_health(
     rows: Sequence[RowMapping],
     holdings: Sequence[RowMapping],
     prices: Sequence[RowMapping],
-    drift: Sequence[SleeveDrift],
-) -> PortfolioHealth:
+    drift: Sequence[csd.SleeveDrift],
+) -> csd.PortfolioHealth:
     total_invested = sum(float(row["invested_amount"]) for row in rows)
     criteria = [
         _criterion(
@@ -313,7 +300,7 @@ def _compute_health(
     ]
     scores = [criterion.score for criterion in criteria if criterion.score is not None]
     headline = round(sum(scores) / len(scores), 1) if scores else 0.0
-    return PortfolioHealth(headline=headline, criteria=criteria)
+    return csd.PortfolioHealth(headline=headline, criteria=criteria)
 
 
 _POSITIONS_SQL = """
@@ -381,8 +368,8 @@ class AnalyticsService:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
 
-    async def summary(self, portfolio_id: int) -> PortfolioSummary | None:
-        async with portfolio_scope(self._engine, portfolio_id) as conn:
+    async def summary(self, portfolio_id: int) -> csd.PortfolioSummary | None:
+        async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             portfolio = (
                 (
                     await conn.execute(
@@ -414,14 +401,14 @@ class AnalyticsService:
             }
             prices = await self._fetch_prices(conn, sorted(price_ids))
 
-        allocation: list[AllocationSlice] = []
+        allocation: list[csd.AllocationSlice] = []
         weighted_rate = 0.0
         for row in rows:
             invested = float(row["invested_amount"])
             entry, latest = row["entry_close"], row["latest_close"]
             value = invested * float(latest) / float(entry) if entry and latest else invested
             allocation.append(
-                AllocationSlice(
+                csd.AllocationSlice(
                     label=row["label"], kind=row["kind"], invested=invested, value=value, weight=0.0
                 )
             )
@@ -445,7 +432,7 @@ class AnalyticsService:
             targets[item.kind] = float(row["sleeve_target"])
             actuals[item.kind] = actuals.get(item.kind, 0.0) + item.weight
         drift = [
-            SleeveDrift(
+            csd.SleeveDrift(
                 kind=kind,
                 target_weight=targets[kind],
                 actual_weight=actual,
@@ -455,7 +442,7 @@ class AnalyticsService:
         ]
 
         projections = [
-            ProjectionOut(
+            csd.ProjectionOut(
                 years=result.years,
                 annual_rate=result.annual_rate,
                 expected=result.expected,
@@ -472,7 +459,7 @@ class AnalyticsService:
                 for years in _HORIZONS
             )
         ]
-        return PortfolioSummary(
+        return csd.PortfolioSummary(
             portfolio_id=portfolio_id,
             name=portfolio["name"],
             initial_capital=float(portfolio["initial_capital"]),
@@ -520,7 +507,9 @@ class AnalyticsService:
         )
         return list(result.mappings().all())
 
-    async def candles(self, ticker: str, days: int | None, interval: str | None) -> list[CandleBar]:
+    async def candles(
+        self, ticker: str, days: int | None, interval: str | None
+    ) -> list[csd.CandleBar]:
         # 1D (or unset) is the raw daily granularity; 7D/1M resample the daily
         # bars into weekly/monthly OHLCV buckets (open=first, high=max, low=min,
         # close=last, volume=sum). prices_daily is the only price source.
@@ -550,9 +539,9 @@ class AnalyticsService:
                     ),
                     {"ticker": ticker, "days": days, "trunc": trunc},
                 )
-            return [CandleBar(**row) for row in rows.mappings()]
+            return [csd.CandleBar(**row) for row in rows.mappings()]
 
-    async def yearly_financials(self, ticker: str) -> list[YearlyFinancials]:
+    async def yearly_financials(self, ticker: str) -> list[csd.YearlyFinancials]:
         async with self._engine.connect() as conn:
             rows = (
                 await conn.execute(
@@ -565,7 +554,7 @@ class AnalyticsService:
                 )
             ).mappings()
             return [
-                YearlyFinancials(
+                csd.YearlyFinancials(
                     fy=row["fy"],
                     revenue=row["revenue"],
                     net_income=row["net_income"],
@@ -582,12 +571,12 @@ class AnalyticsService:
                 for row in rows
             ]
 
-    async def screener(self, limit: int) -> list[ScreenerRow]:
+    async def screener(self, limit: int) -> list[csd.ScreenerRow]:
         async with self._engine.connect() as conn:
             rows = await conn.execute(text(_SCREENER_SQL), {"limit": limit})
-            return [ScreenerRow(**row) for row in rows.mappings()]
+            return [csd.ScreenerRow(**row) for row in rows.mappings()]
 
-    async def funds(self) -> list[FundRow]:
+    async def funds(self) -> list[csd.FundRow]:
         async with self._engine.connect() as conn:
             rows = await conn.execute(
                 text(
@@ -598,9 +587,9 @@ class AnalyticsService:
                     "FROM funds f WHERE f.valid_to IS NULL ORDER BY f.ticker"
                 )
             )
-            return [FundRow(**row) for row in rows.mappings()]
+            return [csd.FundRow(**row) for row in rows.mappings()]
 
-    async def compare_funds(self, tickers: Sequence[str]) -> list[FundRow]:
+    async def compare_funds(self, tickers: Sequence[str]) -> list[csd.FundRow]:
         async with self._engine.connect() as conn:
             rows = await conn.execute(
                 text(
@@ -613,9 +602,9 @@ class AnalyticsService:
                 ),
                 {"tickers": list(tickers)},
             )
-            return [FundRow(**row) for row in rows.mappings()]
+            return [csd.FundRow(**row) for row in rows.mappings()]
 
-    async def ter_drag(self, fund_ticker: str, capital: float, years: int) -> TerDrag | None:
+    async def ter_drag(self, fund_ticker: str, capital: float, years: int) -> csd.TerDrag | None:
         async with self._engine.connect() as conn:
             fund = (
                 (
@@ -634,14 +623,14 @@ class AnalyticsService:
         gross = capital * (1 + rate) ** years
         net = capital * (1 + rate - ter / 100) ** years
         series = [
-            TerDragPoint(
+            csd.TerDragPoint(
                 year=year,
                 gross_value=capital * (1 + rate) ** year,
                 net_value=capital * (1 + rate - ter / 100) ** year,
             )
             for year in range(years + 1)
         ]
-        return TerDrag(
+        return csd.TerDrag(
             fund_ticker=fund_ticker,
             ter=ter,
             cagr_10y=rate,

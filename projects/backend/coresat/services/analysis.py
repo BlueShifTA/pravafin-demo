@@ -9,7 +9,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.domain.analysis import AnalysisNarrative, AnalysisResult
+import coresat.domain as csd
 from coresat.services.analytics import AnalyticsService
 from coresat.services.grounding import (
     FabricatedNumberError,
@@ -55,7 +55,7 @@ def _match_for_rank(rank: int | None) -> str:
     return "Poor"
 
 
-def _prose(narrative: AnalysisNarrative) -> str:
+def _prose(narrative: csd.AnalysisNarrative) -> str:
     return " ".join(
         [narrative.summary, *narrative.strengths, *narrative.weaknesses, *narrative.caveats]
     )
@@ -68,11 +68,11 @@ class AnalysisService:
         self._engine = engine
         self._llm = llm
         self._analytics = analytics
-        self._parser: PydanticOutputParser[AnalysisNarrative] = PydanticOutputParser(
-            pydantic_object=AnalysisNarrative
+        self._parser: PydanticOutputParser[csd.AnalysisNarrative] = PydanticOutputParser(
+            pydantic_object=csd.AnalysisNarrative
         )
 
-    async def analyze(self, ticker: str, portfolio_id: int) -> AnalysisResult:
+    async def analyze(self, ticker: str, portfolio_id: int) -> csd.AnalysisResult:
         facts_rows = await fetch_facts(self._engine, [ticker])
         facts_table, fact_numbers = render_facts(facts_rows)
         rank = await self._rank(ticker)
@@ -93,7 +93,7 @@ class AnalysisService:
                 "analysis rejected: output contained fabricated numbers not present "
                 "in the facts table"
             )
-        return AnalysisResult(
+        return csd.AnalysisResult(
             ticker=ticker,
             model=model_name_of(self._llm),
             magic_formula_match=_match_for_rank(rank),

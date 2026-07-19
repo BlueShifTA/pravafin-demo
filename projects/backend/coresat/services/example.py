@@ -1,5 +1,5 @@
-from coresat.domain.models import ExampleEchoRequest, ExampleEchoResponse
+import coresat.domain as csd
 
 
-def echo_message(payload: ExampleEchoRequest) -> ExampleEchoResponse:
-    return ExampleEchoResponse(message=payload.message, length=len(payload.message))
+def echo_message(payload: csd.ExampleEchoRequest) -> csd.ExampleEchoResponse:
+    return csd.ExampleEchoResponse(message=payload.message, length=len(payload.message))

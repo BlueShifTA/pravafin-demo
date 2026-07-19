@@ -8,16 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from coresat.domain.ingestion import (
-    DocChunkRecord,
-    FundamentalsRecord,
-    FundRecord,
-    HoldingRecord,
-    InstrumentRecord,
-    PriceRecord,
-    YearlyFinancialsRecord,
-)
-from coresat.services.agent.retrieval import Embedder
+import coresat.domain as csd
+import coresat.services.agent as csa
 
 _CHUNK = 5000
 
@@ -43,7 +35,7 @@ async def _ensure_instruments(conn: AsyncConnection, tickers: set[str]) -> dict[
 
 
 async def load_instruments(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-    instruments = cast(Sequence[InstrumentRecord], records)
+    instruments = cast(Sequence[csd.InstrumentRecord], records)
     await conn.execute(
         text(
             "INSERT INTO instruments (ticker, name, type, sector, industry) "
@@ -56,7 +48,7 @@ async def load_instruments(conn: AsyncConnection, records: Sequence[BaseModel]) 
 
 
 async def load_prices(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-    prices = cast(Sequence[PriceRecord], records)
+    prices = cast(Sequence[csd.PriceRecord], records)
     ids = await _ensure_instruments(conn, {record.ticker for record in prices})
     rows = [
         {"instrument_id": ids[record.ticker], **record.model_dump(exclude={"ticker"})}
@@ -74,7 +66,7 @@ async def load_prices(conn: AsyncConnection, records: Sequence[BaseModel]) -> No
 
 
 async def load_holdings(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-    holdings = cast(Sequence[HoldingRecord], records)
+    holdings = cast(Sequence[csd.HoldingRecord], records)
     if not holdings:
         return
     fund_ticker = holdings[0].fund_ticker
@@ -109,7 +101,7 @@ _YEARLY_UPDATES = ", ".join(
 
 
 async def load_financials_yearly(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-    financials = cast(Sequence[YearlyFinancialsRecord], records)
+    financials = cast(Sequence[csd.YearlyFinancialsRecord], records)
     ids = await _ensure_instruments(conn, {record.ticker for record in financials})
     await conn.execute(
         text(
@@ -138,7 +130,7 @@ _FUNDAMENTALS_UPDATES = ", ".join(
 
 
 async def load_fundamentals(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-    fundamentals = cast(Sequence[FundamentalsRecord], records)
+    fundamentals = cast(Sequence[csd.FundamentalsRecord], records)
     ids = await _ensure_instruments(conn, {record.ticker for record in fundamentals})
     # backfill company names onto ticker-named stubs only — a universe_csv run
     # remains the authority and is never overwritten here
@@ -169,7 +161,7 @@ async def load_fundamentals(conn: AsyncConnection, records: Sequence[BaseModel])
 
 
 async def load_funds(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-    funds = cast(Sequence[FundRecord], records)
+    funds = cast(Sequence[csd.FundRecord], records)
     await conn.execute(
         text(
             "INSERT INTO funds (ticker, name, provider, category, currency, fund_size, ter, "
@@ -193,11 +185,11 @@ class DocChunkLoader:
     throughput ever matters.
     """
 
-    def __init__(self, embedder: Embedder) -> None:
-        self._embedder: Embedder = embedder
+    def __init__(self, embedder: csa.Embedder) -> None:
+        self._embedder: csa.Embedder = embedder
 
     async def __call__(self, conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
-        chunks = cast(Sequence[DocChunkRecord], records)
+        chunks = cast(Sequence[csd.DocChunkRecord], records)
         for chunk in chunks:
             vector = await self._embedder.embed(chunk.text)
             literal = "[" + ",".join(repr(value) for value in vector) + "]"

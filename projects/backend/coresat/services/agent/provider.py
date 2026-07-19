@@ -10,7 +10,7 @@ from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from coresat.core.config import Settings
+import coresat.core as csc
 
 # reasoning off + capped output mirrors the copilot's Ollama tuning: qwen's
 # think mode spirals on strict-format prompts, and the grounded features need
@@ -18,12 +18,12 @@ from coresat.core.config import Settings
 _OLLAMA_NUM_PREDICT = 3000
 
 
-def model_name_for(provider: str, settings: Settings) -> str:
+def model_name_for(provider: str, settings: csc.Settings) -> str:
     """The concrete model id a provider will run — for the audit and UI."""
     return settings.openai_model if provider == "openai" else settings.ollama_model
 
 
-def build_chat_model(provider: str, settings: Settings) -> BaseChatModel:
+def build_chat_model(provider: str, settings: csc.Settings) -> BaseChatModel:
     if provider == "ollama":
         return ChatOllama(
             base_url=settings.ollama_base_url,

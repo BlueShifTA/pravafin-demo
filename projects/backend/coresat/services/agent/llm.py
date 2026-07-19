@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel
 
-from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict
+import coresat.domain as csd
 from coresat.services.agent.sql_templates import templates_block
 
 log = logging.getLogger(__name__)
@@ -235,18 +235,18 @@ DRAFT_PROMPTS = AgentPrompts(
 
 
 class AgentLLM(Protocol):
-    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]: ...
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, Usage]: ...
 
     async def plan(
         self, query: str, context: str, replan_error: str | None
-    ) -> tuple[Plan, Usage]: ...
+    ) -> tuple[csd.Plan, Usage]: ...
 
     async def synthesise(
-        self, query: str, context: str, evidence: list[Evidence]
-    ) -> tuple[Answer, Usage]: ...
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, Usage]: ...
 
 
-def _render_evidence(evidence: list[Evidence]) -> str:
+def _render_evidence(evidence: list[csd.Evidence]) -> str:
     if not evidence:
         return "(no evidence gathered — answer from the conversation alone)"
     lines: list[str] = []
@@ -322,7 +322,7 @@ class ChatModelAgentLLM:
                 ]
         raise last_error if last_error is not None else RuntimeError("structured call failed")
 
-    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, Usage]:
         messages: list[SystemMessage | HumanMessage] = [
             SystemMessage(content=self._prompts.scope),
             HumanMessage(
@@ -330,13 +330,15 @@ class ChatModelAgentLLM:
             ),
         ]
         try:
-            return await self._structured(ScopeVerdict, messages)
+            return await self._structured(csd.ScopeVerdict, messages)
         except Exception:
             # turn; fail open to the planner, the grounding validator still guards.
             log.exception("scope classification unusable after retry; assuming in scope")
-            return ScopeVerdict(in_scope=True), Usage(tokens_in=0, tokens_out=0)
+            return csd.ScopeVerdict(in_scope=True), Usage(tokens_in=0, tokens_out=0)
 
-    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+    async def plan(
+        self, query: str, context: str, replan_error: str | None
+    ) -> tuple[csd.Plan, Usage]:
         note = (
             f"\n\nPrevious attempt failed validation: {replan_error}\n"
             "Plan again with different or additional steps."
@@ -348,15 +350,15 @@ class ChatModelAgentLLM:
             HumanMessage(content=f"Conversation so far:\n{context}\n\nUser query: {query}{note}"),
         ]
         try:
-            return await self._structured(Plan, messages)
+            return await self._structured(csd.Plan, messages)
         except Exception:
             # synthesiser answers from conversation alone instead of failing.
             log.exception("planner output unusable after retry; degrading to empty plan")
-            return Plan(steps=[]), Usage(tokens_in=0, tokens_out=0)
+            return csd.Plan(steps=[]), Usage(tokens_in=0, tokens_out=0)
 
     async def synthesise(
-        self, query: str, context: str, evidence: list[Evidence]
-    ) -> tuple[Answer, Usage]:
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, Usage]:
         messages: list[SystemMessage | HumanMessage] = [
             SystemMessage(content=self._prompts.synthesiser),
             HumanMessage(
@@ -368,10 +370,10 @@ class ChatModelAgentLLM:
             ),
         ]
         try:
-            return await self._structured(Answer, messages)
+            return await self._structured(csd.Answer, messages)
         except Exception:
             # A persistent unparseable synthesis must not crash the SSE stream.
             # Flag a re-plan so the graph tries again and, if it still cannot
             # compose, refuses cleanly (give_up) instead of a 500 to the client.
             log.exception("synthesiser output unusable after retries; requesting re-plan")
-            return Answer(text="", needs_replan=True), Usage(tokens_in=0, tokens_out=0)
+            return csd.Answer(text="", needs_replan=True), Usage(tokens_in=0, tokens_out=0)

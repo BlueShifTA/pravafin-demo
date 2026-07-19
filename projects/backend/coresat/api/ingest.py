@@ -6,14 +6,14 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.params import Query
 from sqlalchemy import text
 
-from coresat.domain.ingestion import IngestReport
-from coresat.services.ingestion.pipeline import IngestionPipeline
+import coresat.domain as csd
+import coresat.services.ingestion as csi
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
-def _pipeline(request: Request) -> IngestionPipeline:
-    pipeline: IngestionPipeline = request.app.state.ingest_pipeline
+def _pipeline(request: Request) -> csi.IngestionPipeline:
+    pipeline: csi.IngestionPipeline = request.app.state.ingest_pipeline
     return pipeline
 
 
@@ -23,7 +23,7 @@ async def ingest(
     file: UploadFile,
     request: Request,
     source_ref: Annotated[str | None, Query()] = None,
-) -> IngestReport:
+) -> csd.IngestReport:
     payload = await file.read()
     try:
         return await _pipeline(request).run(adapter_name, payload, source_ref)

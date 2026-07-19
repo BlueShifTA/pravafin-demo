@@ -3,18 +3,18 @@
 import asyncio
 import logging
 
-from coresat.domain.agent import Evidence, Plan, Step, ToolName
+import coresat.domain as csd
 from coresat.services.agent.tools import Tool
 
 log = logging.getLogger(__name__)
 
 
 class Executor:
-    def __init__(self, tools: dict[ToolName, Tool]) -> None:
-        self._tools: dict[ToolName, Tool] = tools
+    def __init__(self, tools: dict[csd.ToolName, Tool]) -> None:
+        self._tools: dict[csd.ToolName, Tool] = tools
 
-    async def execute(self, plan: Plan) -> list[Evidence]:
-        done: dict[int, Evidence] = {}
+    async def execute(self, plan: csd.Plan) -> list[csd.Evidence]:
+        done: dict[int, csd.Evidence] = {}
         remaining = list(plan.steps)
         while remaining:
             ready = [step for step in remaining if all(dep in done for dep in step.depends_on)]
@@ -22,7 +22,7 @@ class Executor:
                 # Cycle or dangling depends_on from the planner: fail the
                 # stuck steps explicitly so the synthesiser can surface them.
                 for step in remaining:
-                    done[step.id] = Evidence(
+                    done[step.id] = csd.Evidence(
                         step_id=step.id,
                         source="error",
                         content="",
@@ -35,10 +35,10 @@ class Executor:
             remaining = [step for step in remaining if step.id not in done]
         return [done[step.id] for step in plan.steps]
 
-    async def _run_step(self, step: Step) -> Evidence:
+    async def _run_step(self, step: csd.Step) -> csd.Evidence:
         tool = self._tools.get(step.tool)
         if tool is None:
-            return Evidence(
+            return csd.Evidence(
                 step_id=step.id,
                 source="error",
                 content="",
@@ -49,7 +49,7 @@ class Executor:
         except Exception as exc:
             # must become typed evidence, never a crashed request.
             log.exception("tool %s failed for step %d", step.tool, step.id)
-            return Evidence(
+            return csd.Evidence(
                 step_id=step.id,
                 source="error",
                 content="",

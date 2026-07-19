@@ -10,18 +10,16 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
-from coresat.db.schema import apply_schema
-from coresat.domain.agent import Answer, Evidence, Plan, PortfolioDraft, ScopeVerdict
+import coresat.db as csdb
+import coresat.domain as csd
+import coresat.services.agent as csa
 from coresat.main import app
-from coresat.services.agent.agent import GroundedAgent
-from coresat.services.agent.draft_service import DraftService
-from coresat.services.agent.llm import Usage
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 
-_USAGE = Usage(tokens_in=9, tokens_out=4)
+_USAGE = csa.Usage(tokens_in=9, tokens_out=4)
 
-_VALID_DRAFT = PortfolioDraft(
+_VALID_DRAFT = csd.PortfolioDraft(
     name="AI Growth",
     initial_capital=100000,
     monthly_contribution=500,
@@ -35,21 +33,23 @@ _VALID_DRAFT = PortfolioDraft(
 
 
 class ScriptedAgentLLM:
-    def __init__(self, in_scope: bool, answers: list[Answer]) -> None:
+    def __init__(self, in_scope: bool, answers: list[csd.Answer]) -> None:
         self.in_scope: bool = in_scope
-        self.answers: list[Answer] = answers
+        self.answers: list[csd.Answer] = answers
         self.calls: int = 0
 
-    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
-        return ScopeVerdict(in_scope=self.in_scope), _USAGE
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, csa.Usage]:
+        return csd.ScopeVerdict(in_scope=self.in_scope), _USAGE
 
-    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+    async def plan(
+        self, query: str, context: str, replan_error: str | None
+    ) -> tuple[csd.Plan, csa.Usage]:
         self.calls += 1
-        return Plan(steps=[]), _USAGE
+        return csd.Plan(steps=[]), _USAGE
 
     async def synthesise(
-        self, query: str, context: str, evidence: list[Evidence]
-    ) -> tuple[Answer, Usage]:
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, csa.Usage]:
         return self.answers[min(self.calls - 1, len(self.answers) - 1)], _USAGE
 
 
@@ -62,7 +62,7 @@ async def _connect_or_skip() -> asyncpg.Connection:
 
 async def _seed() -> None:
     conn = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute("TRUNCATE positions, sleeves, portfolios RESTART IDENTITY CASCADE")
     for ticker, name, kind in (("NVDA", "NVIDIA", "stock"), ("UNH", "UnitedHealth", "stock")):
         await conn.execute(
@@ -88,9 +88,9 @@ def _client(llm: ScriptedAgentLLM) -> TestClient:
     test_client = TestClient(app)
     test_client.__enter__()
     state = test_client.app.state  # type: ignore[union-attr]
-    state.draft_service = DraftService(
+    state.draft_service = csa.DraftService(
         engine=state.app_engine,
-        agent=GroundedAgent(llm),
+        agent=csa.GroundedAgent(llm),
         portfolios=state.portfolio_service,
         rag_tool=state.rag_tool,
     )
@@ -112,7 +112,7 @@ def _events(body: str) -> list[tuple[str, dict[str, object]]]:
 
 
 def test_propose_emits_draft_without_creating() -> None:
-    answer = Answer(text="Here is a portfolio.", action="propose", draft=_VALID_DRAFT)
+    answer = csd.Answer(text="Here is a portfolio.", action="propose", draft=_VALID_DRAFT)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post(
@@ -135,7 +135,7 @@ def test_propose_normalizes_weights_that_do_not_sum_to_one() -> None:
     # A small model routinely proposes weights that miss summing to 1 (here
     # 0.7 + 0.2 + 0.2 = 1.1). The shown draft must be rescaled to sum to 1 so
     # the recommendation is actually buildable.
-    bad = PortfolioDraft(
+    bad = csd.PortfolioDraft(
         name="AI Growth",
         initial_capital=100000,
         monthly_contribution=500,
@@ -143,7 +143,7 @@ def test_propose_normalizes_weights_that_do_not_sum_to_one() -> None:
         core_weight=0.7,
         satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "UNH", "weight": 0.2}],
     )
-    answer = Answer(text="Here is a portfolio.", action="propose", draft=bad)
+    answer = csd.Answer(text="Here is a portfolio.", action="propose", draft=bad)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
@@ -161,7 +161,7 @@ def test_propose_resolves_a_core_ticker_missing_its_exchange_suffix() -> None:
     # the model routinely drops the exchange suffix (IWDA for IWDA.AS); the
     # resolver must map it back to the real fund so "build it" doesn't fail with
     # "unknown fund".
-    draft = PortfolioDraft(
+    draft = csd.PortfolioDraft(
         name="Suffix Fix",
         initial_capital=10000,
         monthly_contribution=0,
@@ -169,7 +169,7 @@ def test_propose_resolves_a_core_ticker_missing_its_exchange_suffix() -> None:
         core_weight=0.6,
         satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "UNH", "weight": 0.2}],
     )
-    answer = Answer(text="Here is a portfolio.", action="propose", draft=draft)
+    answer = csd.Answer(text="Here is a portfolio.", action="propose", draft=draft)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
@@ -185,7 +185,7 @@ def test_propose_resolves_a_core_ticker_missing_its_exchange_suffix() -> None:
 
 def test_propose_with_unknown_core_falls_back_to_chat() -> None:
     # a core the DB has no fund for must not be offered as a broken build.
-    draft = PortfolioDraft(
+    draft = csd.PortfolioDraft(
         name="Bad Core",
         initial_capital=10000,
         monthly_contribution=0,
@@ -193,7 +193,7 @@ def test_propose_with_unknown_core_falls_back_to_chat() -> None:
         core_weight=1.0,
         satellites=[],
     )
-    answer = Answer(text="Here.", action="propose", draft=draft)
+    answer = csd.Answer(text="Here.", action="propose", draft=draft)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
@@ -210,7 +210,7 @@ def test_propose_with_all_satellites_unresolvable_falls_back_to_chat() -> None:
     # gemma sometimes fills satellites with company names ("NVIDIA CORP") or a
     # second ETF — none resolve to a tradable stock. They must NOT be silently
     # dropped into a misleading 100%-core proposal; fall back to chat + say why.
-    draft = PortfolioDraft(
+    draft = csd.PortfolioDraft(
         name="Names Not Tickers",
         initial_capital=10000,
         monthly_contribution=0,
@@ -221,7 +221,7 @@ def test_propose_with_all_satellites_unresolvable_falls_back_to_chat() -> None:
             {"ticker": "NONEXISTENT HOLDINGS CO", "weight": 0.30},
         ],
     )
-    answer = Answer(text="Here is a portfolio.", action="propose", draft=draft)
+    answer = csd.Answer(text="Here is a portfolio.", action="propose", draft=draft)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
@@ -235,7 +235,7 @@ def test_propose_with_all_satellites_unresolvable_falls_back_to_chat() -> None:
 
 
 def test_propose_drops_one_unresolvable_satellite_with_a_note() -> None:
-    draft = PortfolioDraft(
+    draft = csd.PortfolioDraft(
         name="One Bad Sat",
         initial_capital=10000,
         monthly_contribution=0,
@@ -243,7 +243,7 @@ def test_propose_drops_one_unresolvable_satellite_with_a_note() -> None:
         core_weight=0.6,
         satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "ZZZZ", "weight": 0.2}],
     )
-    answer = Answer(text="Here.", action="propose", draft=draft)
+    answer = csd.Answer(text="Here.", action="propose", draft=draft)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
@@ -260,7 +260,7 @@ def test_propose_drops_one_unresolvable_satellite_with_a_note() -> None:
 def test_propose_resolves_a_satellite_by_company_name() -> None:
     # gemma sometimes emits a company name instead of a ticker; resolve it
     # against instruments.name so the holding is not dropped.
-    draft = PortfolioDraft(
+    draft = csd.PortfolioDraft(
         name="By Name",
         initial_capital=10000,
         monthly_contribution=0,
@@ -268,7 +268,7 @@ def test_propose_resolves_a_satellite_by_company_name() -> None:
         core_weight=0.6,
         satellites=[{"ticker": "NVIDIA", "weight": 0.2}, {"ticker": "UnitedHealth", "weight": 0.2}],
     )
-    answer = Answer(text="Here.", action="propose", draft=draft)
+    answer = csd.Answer(text="Here.", action="propose", draft=draft)
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
@@ -282,7 +282,7 @@ def test_propose_resolves_a_satellite_by_company_name() -> None:
 
 
 def test_confirm_creates_portfolio_in_database() -> None:
-    answer = Answer(text="Building it now.", action="create")
+    answer = csd.Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post(
@@ -308,7 +308,7 @@ def test_confirm_creates_portfolio_in_database() -> None:
 def test_confirm_flag_creates_deterministically_without_llm() -> None:
     # the "build it" button sends confirm=true; creation must happen even when
     # the LLM would never emit a create action (here it only chats)
-    chatty = Answer(text="Sure, what else?", action="chat")
+    chatty = csd.Answer(text="Sure, what else?", action="chat")
     llm = ScriptedAgentLLM(in_scope=True, answers=[chatty])
     client = _client(llm)
     try:
@@ -329,7 +329,7 @@ def test_confirm_flag_creates_deterministically_without_llm() -> None:
 
 
 def test_create_action_without_prior_proposal_does_not_create() -> None:
-    answer = Answer(text="Building it now.", action="create")
+    answer = csd.Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post(
@@ -345,7 +345,7 @@ def test_create_action_without_prior_proposal_does_not_create() -> None:
 
 def test_confirm_with_weights_not_summing_to_one_errors() -> None:
     bad_draft = _VALID_DRAFT.model_copy(update={"satellites": [{"ticker": "NVDA", "weight": 0.1}]})
-    answer = Answer(text="Building it now.", action="create")
+    answer = csd.Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post(
@@ -363,7 +363,7 @@ def test_confirm_with_weights_not_summing_to_one_errors() -> None:
 
 def test_confirm_with_unknown_ticker_errors() -> None:
     bad_draft = _VALID_DRAFT.model_copy(update={"satellites": [{"ticker": "ZZZZ", "weight": 0.4}]})
-    answer = Answer(text="Building it now.", action="create")
+    answer = csd.Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
     try:
         response = client.post(

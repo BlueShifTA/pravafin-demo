@@ -9,7 +9,7 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
-from coresat.db.schema import apply_schema
+import coresat.db as csdb
 from coresat.main import app
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
@@ -24,7 +24,7 @@ async def _connect_or_skip() -> asyncpg.Connection:
 
 async def _seed() -> None:
     conn = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute("DELETE FROM funds WHERE ticker IN ('CMPA.AS', 'CMPB.L', 'CMPC.DE')")
     await conn.execute(
         "INSERT INTO funds (ticker, name, ter, cagr_10y) VALUES "

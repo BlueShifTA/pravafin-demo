@@ -14,7 +14,7 @@ from langchain_ollama import OllamaEmbeddings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.domain.rag import RetrievedChunk
+import coresat.domain as csd
 
 # recall pool gathered by each signal before the cross-encoder reranks it
 _PROBE = 20
@@ -29,7 +29,7 @@ class Reranker(Protocol):
 
 
 class Retriever(Protocol):
-    async def retrieve(self, query: str, k: int) -> list[RetrievedChunk]: ...
+    async def retrieve(self, query: str, k: int) -> list[csd.RetrievedChunk]: ...
 
 
 class OllamaEmbedder:
@@ -66,7 +66,7 @@ class RagRetriever:
         self._embedder: Embedder = embedder
         self._reranker: Reranker = reranker
 
-    async def retrieve(self, query: str, k: int) -> list[RetrievedChunk]:
+    async def retrieve(self, query: str, k: int) -> list[csd.RetrievedChunk]:
         query_vector = await self._embedder.embed(query)
         async with self._engine.connect() as conn:
             rows = (
@@ -97,7 +97,7 @@ class RagRetriever:
         scores = await asyncio.to_thread(self._reranker.rank, query, texts)
         ranked = sorted(zip(rows, scores, strict=True), key=lambda pair: pair[1], reverse=True)
         return [
-            RetrievedChunk(
+            csd.RetrievedChunk(
                 source_doc=row["source_doc"], page=row["page"], text=row["text"], score=float(score)
             )
             for row, score in ranked[:k]

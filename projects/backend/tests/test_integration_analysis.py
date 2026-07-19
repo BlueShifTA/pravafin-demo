@@ -13,8 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.language_models import FakeListChatModel
 
+import coresat.services as css
 from coresat.main import app
-from coresat.services.analysis import AnalysisService
 from tests.test_integration_comparison import ADMIN_DSN, _prepare
 
 _GOOD_NARRATIVE = json.dumps(
@@ -41,7 +41,7 @@ def _client_with_fake_llm(responses: list[str]) -> TestClient:
     test_client.__enter__()
     fake = FakeListChatModel(responses=responses)
     state = test_client.app.state  # type: ignore[union-attr]
-    state.analysis_service = AnalysisService(
+    state.analysis_service = css.AnalysisService(
         engine=state.app_engine, llm=fake, analytics=state.analytics_service
     )
     return test_client

@@ -9,8 +9,8 @@ instead of silently degrading a live agent turn. Auto-skips without Postgres.
 import asyncpg
 import pytest
 
-from coresat.db.schema import apply_schema
-from coresat.services.agent.sql_templates import SQL_TEMPLATES
+import coresat.db as csdb
+import coresat.services.agent as csa
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 
@@ -28,8 +28,8 @@ async def test_every_sql_template_executes_against_the_schema() -> None:
     conn = await _connect_or_skip()
     failures: list[str] = []
     try:
-        await apply_schema(ADMIN_DSN)
-        for intent, sql in SQL_TEMPLATES:
+        await csdb.apply_schema(ADMIN_DSN)
+        for intent, sql in csa.SQL_TEMPLATES:
             try:
                 await conn.fetch(sql)
             except asyncpg.PostgresError as error:

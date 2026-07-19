@@ -9,21 +9,12 @@ from pydantic import BaseModel, ValidationError
 from pypdf import PdfReader
 from pypdf.errors import PyPdfError
 
-from coresat.domain.ingestion import (
-    DocChunkRecord,
-    FundamentalsRecord,
-    FundRecord,
-    HoldingRecord,
-    InstrumentRecord,
-    PriceRecord,
-    RejectedRow,
-    YearlyFinancialsRecord,
-)
+import coresat.domain as csd
 
 # chunk target in characters; word-packed so a chunk never splits a token
 _CHUNK_CHARS = 800
 
-ParseResult = tuple[Sequence[BaseModel], list[RejectedRow]]
+ParseResult = tuple[Sequence[BaseModel], list[csd.RejectedRow]]
 
 
 class SourceAdapter(Protocol):
@@ -65,12 +56,12 @@ class UniverseCsvAdapter:
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         for raw in csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))):
             row = _clean(raw)
             try:
                 valid.append(
-                    InstrumentRecord(
+                    csd.InstrumentRecord(
                         ticker=row.get("ticker") or "",
                         type=row.get("type") or "",  # type: ignore[arg-type]
                         name=row.get("name") or row.get("ticker"),
@@ -79,7 +70,7 @@ class UniverseCsvAdapter:
                     )
                 )
             except ValidationError as error:
-                rejects.append(RejectedRow(row=row, reason=_reason(error)))
+                rejects.append(csd.RejectedRow(row=row, reason=_reason(error)))
         return valid, rejects
 
 
@@ -105,7 +96,7 @@ class DailyPricesCsvAdapter:
         else:
             raise ValueError("unrecognised daily prices CSV layout")
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         for cells in csv.reader(data_lines):
             if not cells or not any(cells):
                 continue
@@ -116,7 +107,7 @@ class DailyPricesCsvAdapter:
             volume = row.get("volume")
             try:
                 valid.append(
-                    PriceRecord(
+                    csd.PriceRecord(
                         ticker=ticker,
                         date=row.get("date") or "",  # type: ignore[arg-type]
                         close=row.get("close") or "",  # type: ignore[arg-type]
@@ -128,7 +119,7 @@ class DailyPricesCsvAdapter:
                 )
             except (ValidationError, ValueError) as error:
                 reason = _reason(error) if isinstance(error, ValidationError) else str(error)
-                rejects.append(RejectedRow(row=row, reason=reason))
+                rejects.append(csd.RejectedRow(row=row, reason=reason))
         return valid, rejects
 
 
@@ -145,12 +136,12 @@ class ISharesHoldingsCsvAdapter:
         fund_name = next(line for line in lines if line.strip()).strip().strip('"')
         header_index = next(index for index, line in enumerate(lines) if line.startswith("Ticker,"))
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         for raw in csv.DictReader(io.StringIO("\n".join(lines[header_index:]))):
             row = _clean(raw)
             try:
                 valid.append(
-                    HoldingRecord(
+                    csd.HoldingRecord(
                         fund_ticker=source_ref,
                         fund_name=fund_name,
                         ticker=row.get("Ticker") or "",
@@ -160,7 +151,7 @@ class ISharesHoldingsCsvAdapter:
                     )
                 )
             except ValidationError as error:
-                rejects.append(RejectedRow(row=row, reason=_reason(error)))
+                rejects.append(csd.RejectedRow(row=row, reason=_reason(error)))
         return valid, rejects
 
 
@@ -195,20 +186,20 @@ class FundamentalsCsvAdapter:
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         for raw in csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))):
             row = _clean(raw)
             numbers = {field: _number(row.get(field)) for field in _FUNDAMENTALS_FIELDS}
             try:
                 valid.append(
-                    FundamentalsRecord(
+                    csd.FundamentalsRecord(
                         ticker=row.get("ticker") or "",
                         name=row.get("name"),
                         **numbers,  # type: ignore[arg-type]
                     )
                 )
             except ValidationError as error:
-                rejects.append(RejectedRow(row=row, reason=_reason(error)))
+                rejects.append(csd.RejectedRow(row=row, reason=_reason(error)))
         return valid, rejects
 
 
@@ -229,20 +220,20 @@ class FinancialsYearlyCsvAdapter:
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         for raw in csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))):
             row = _clean(raw)
             numbers = {field: _number(row.get(field)) for field in _YEARLY_FINANCIALS_FIELDS}
             try:
                 valid.append(
-                    YearlyFinancialsRecord(
+                    csd.YearlyFinancialsRecord(
                         ticker=row.get("ticker") or "",
                         fy=row.get("fy"),  # type: ignore[arg-type]
                         **numbers,  # type: ignore[arg-type]
                     )
                 )
             except ValidationError as error:
-                rejects.append(RejectedRow(row=row, reason=_reason(error)))
+                rejects.append(csd.RejectedRow(row=row, reason=_reason(error)))
         return valid, rejects
 
 
@@ -283,13 +274,13 @@ class PdfAdapter:
         except PyPdfError as error:
             raise ValueError(f"could not read PDF '{source_ref}': {error}") from error
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         index = 0
         for page_number, page_text in pages:
             for piece in _chunk_text(page_text):
                 try:
                     valid.append(
-                        DocChunkRecord(
+                        csd.DocChunkRecord(
                             source_doc=source_ref,
                             doc_type="pdf",  # ponytail: one doc_type; split by kind if RAG grows
                             page=page_number,
@@ -300,7 +291,7 @@ class PdfAdapter:
                     index += 1
                 except ValidationError as error:
                     rejects.append(
-                        RejectedRow(row={"page": str(page_number)}, reason=_reason(error))
+                        csd.RejectedRow(row={"page": str(page_number)}, reason=_reason(error))
                     )
         return valid, rejects
 
@@ -311,12 +302,12 @@ class FundsCsvAdapter:
 
     def parse(self, payload: bytes, _source_ref: str | None, /) -> ParseResult:
         valid: list[BaseModel] = []
-        rejects: list[RejectedRow] = []
+        rejects: list[csd.RejectedRow] = []
         for raw in csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))):
             row = _clean(raw)
             try:
                 valid.append(
-                    FundRecord(
+                    csd.FundRecord(
                         ticker=row.get("ticker") or "",
                         name=row.get("name") or "",
                         provider=row.get("provider"),
@@ -330,5 +321,5 @@ class FundsCsvAdapter:
                     )
                 )
             except ValidationError as error:
-                rejects.append(RejectedRow(row=row, reason=_reason(error)))
+                rejects.append(csd.RejectedRow(row=row, reason=_reason(error)))
         return valid, rejects

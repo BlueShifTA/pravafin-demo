@@ -11,7 +11,7 @@ Tests cover:
 
 from fastapi.testclient import TestClient
 
-from coresat.core.config import get_settings
+import coresat.core as csc
 from coresat.main import app
 
 # ──────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ def test_cors_no_wildcard_in_settings() -> None:
     is patched to raise RuntimeError on wildcard, this test also validates
     that the running app was created without triggering that guard.
     """
-    settings = get_settings()
+    settings = csc.get_settings()
     assert "*" not in settings.cors_origins, (
         "Wildcard '*' found in cors_origins — this is a security misconfiguration."
     )
@@ -206,7 +206,7 @@ def test_default_host_is_loopback() -> None:
     public-facing ones. Loopback-only is the safe default; a reverse proxy
     (nginx, Caddy) should handle external traffic.
     """
-    settings = get_settings()
+    settings = csc.get_settings()
     assert settings.host == "127.0.0.1", (
         f"Default host is '{settings.host}' — must be '127.0.0.1', not '0.0.0.0'."
     )

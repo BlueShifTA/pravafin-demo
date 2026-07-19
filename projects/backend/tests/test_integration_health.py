@@ -14,9 +14,8 @@ import asyncpg
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.db.schema import apply_schema
-from coresat.db.session import create_engine
-from coresat.services.analytics import AnalyticsService
+import coresat.db as csdb
+import coresat.services as css
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"
@@ -48,7 +47,7 @@ async def _admin_or_skip() -> asyncpg.Connection:
 
 
 async def _reset(admin: asyncpg.Connection) -> None:
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await admin.execute(
         "TRUNCATE positions, sleeves, chat_messages, llm_audit_log, portfolios "
         "RESTART IDENTITY CASCADE"
@@ -184,7 +183,7 @@ async def _add_satellite_position(
 
 @pytest.fixture
 async def app_engine() -> AsyncIterator[AsyncEngine]:
-    engine = create_engine(APP_URL)
+    engine = csdb.create_engine(APP_URL)
     yield engine
     await engine.dispose()
 
@@ -214,7 +213,7 @@ async def test_full_portfolio_scores_each_criterion(app_engine: AsyncEngine) -> 
     portfolio_id = await _seed_full(admin, with_prices=True)
     await admin.close()
 
-    summary = await AnalyticsService(app_engine).summary(portfolio_id)
+    summary = await css.AnalyticsService(app_engine).summary(portfolio_id)
     assert summary is not None
     crit = _by_key(summary)
 
@@ -255,7 +254,7 @@ async def test_volatility_unavailable_without_prices(app_engine: AsyncEngine) ->
     portfolio_id = await _seed_full(admin, with_prices=False)
     await admin.close()
 
-    summary = await AnalyticsService(app_engine).summary(portfolio_id)
+    summary = await css.AnalyticsService(app_engine).summary(portfolio_id)
     assert summary is not None
     crit = _by_key(summary)
 
@@ -277,7 +276,7 @@ async def test_empty_portfolio_is_perfect_and_does_not_crash(app_engine: AsyncEn
     portfolio_id = await _make_portfolio(admin, "Empty")
     await admin.close()
 
-    summary = await AnalyticsService(app_engine).summary(portfolio_id)
+    summary = await css.AnalyticsService(app_engine).summary(portfolio_id)
     assert summary is not None
     crit = _by_key(summary)
 
@@ -304,7 +303,7 @@ async def test_core_only_portfolio_single_sleeve(app_engine: AsyncEngine) -> Non
     await _add_core_position(admin, portfolio_id, core_sleeve, fund_id, 10000)
     await admin.close()
 
-    summary = await AnalyticsService(app_engine).summary(portfolio_id)
+    summary = await css.AnalyticsService(app_engine).summary(portfolio_id)
     assert summary is not None
     crit = _by_key(summary)
 
@@ -330,5 +329,5 @@ async def test_nonexistent_portfolio_returns_none(app_engine: AsyncEngine) -> No
     await _reset(admin)
     await admin.close()
     # No scope will ever match id 999999 -> RLS yields no portfolio row.
-    summary = await AnalyticsService(app_engine).summary(999999)
+    summary = await css.AnalyticsService(app_engine).summary(999999)
     assert summary is None

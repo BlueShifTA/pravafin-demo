@@ -11,10 +11,9 @@ import io
 import logging
 import pathlib
 
-from coresat.core.config import get_settings
-from coresat.db.schema import apply_schema
-from coresat.db.session import create_engine, to_async_url
-from coresat.services.agent.retrieval import OllamaEmbedder
+import coresat.core as csc
+import coresat.db as csdb
+import coresat.services.agent as csa
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
 
 log = logging.getLogger(__name__)
@@ -57,10 +56,10 @@ def merge_fundamentals(stocks_csv: bytes, financials_csv: bytes) -> bytes:
 
 
 async def seed(data_dir: pathlib.Path) -> None:
-    settings = get_settings()
-    await apply_schema(settings.admin_database_url)
-    engine = create_engine(to_async_url(settings.admin_database_url))
-    embedder = OllamaEmbedder(settings.ollama_base_url, settings.ollama_embed_model)
+    settings = csc.get_settings()
+    await csdb.apply_schema(settings.admin_database_url)
+    engine = csdb.create_engine(csdb.to_async_url(settings.admin_database_url))
+    embedder = csa.OllamaEmbedder(settings.ollama_base_url, settings.ollama_embed_model)
     pipeline = IngestionPipeline(engine=engine, registry=build_registry(embedder))
     try:
         stocks_path = data_dir / "fundamentals_stocks.csv"

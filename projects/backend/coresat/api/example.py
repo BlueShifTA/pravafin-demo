@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from coresat.domain.models import ExampleEchoRequest, ExampleEchoResponse
-from coresat.services.example import echo_message
+import coresat.domain as csd
+import coresat.services as css
 
 router = APIRouter(prefix="/example", tags=["example"])
 
 
-@router.post("/echo", response_model=ExampleEchoResponse)
-def echo(payload: ExampleEchoRequest) -> ExampleEchoResponse:
-    return echo_message(payload)
+@router.post("/echo", response_model=csd.ExampleEchoResponse)
+def echo(payload: csd.ExampleEchoRequest) -> csd.ExampleEchoResponse:
+    return css.echo_message(payload)

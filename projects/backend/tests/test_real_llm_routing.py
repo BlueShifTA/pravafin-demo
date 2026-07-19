@@ -13,10 +13,9 @@ import os
 
 import pytest
 
-from coresat.core.config import get_settings
-from coresat.domain.agent import ToolName
-from coresat.services.agent.llm import DRAFT_PROMPTS, ChatModelAgentLLM
-from coresat.services.agent.provider import build_chat_model
+import coresat.core as csc
+import coresat.domain as csd
+import coresat.services.agent as csa
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("CORESAT_REAL_LLM") != "1",
@@ -24,10 +23,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _planner() -> ChatModelAgentLLM:
-    settings = get_settings()
-    return ChatModelAgentLLM(
-        build_chat_model(settings.draft_agent_provider, settings), DRAFT_PROMPTS
+def _planner() -> csa.ChatModelAgentLLM:
+    settings = csc.get_settings()
+    return csa.ChatModelAgentLLM(
+        csa.build_chat_model(settings.draft_agent_provider, settings), csa.DRAFT_PROMPTS
     )
 
 
@@ -64,11 +63,11 @@ _RAG_PROMPTS = [
 async def test_figure_prompts_route_to_run_sql(prompt: str) -> None:
     plan, _ = await _planner().plan(prompt, "", None)
     tools = {step.tool for step in plan.steps}
-    assert ToolName.RUN_SQL in tools, f"expected run_sql, planned {tools} for {prompt!r}"
+    assert csd.ToolName.RUN_SQL in tools, f"expected run_sql, planned {tools} for {prompt!r}"
 
 
 @pytest.mark.parametrize("prompt", _RAG_PROMPTS)
 async def test_document_prompts_route_to_rag_search(prompt: str) -> None:
     plan, _ = await _planner().plan(prompt, "", None)
     tools = {step.tool for step in plan.steps}
-    assert ToolName.RAG_SEARCH in tools, f"expected rag_search, planned {tools} for {prompt!r}"
+    assert csd.ToolName.RAG_SEARCH in tools, f"expected rag_search, planned {tools} for {prompt!r}"

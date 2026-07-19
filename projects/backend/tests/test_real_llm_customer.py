@@ -16,7 +16,7 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
-from coresat.db.schema import apply_schema
+import coresat.db as csdb
 from coresat.main import app
 
 pytestmark = pytest.mark.skipif(
@@ -55,7 +55,7 @@ async def _seed() -> None:
         conn = await asyncpg.connect(ADMIN_DSN, timeout=3)
     except OSError, asyncpg.PostgresError, TimeoutError:
         pytest.skip("postgres not running — just stack-up")
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute("TRUNCATE positions, sleeves, portfolios RESTART IDENTITY CASCADE")
     for ticker, name, sector, market_cap, pe, roe, fcf in _STOCKS:
         await conn.execute(

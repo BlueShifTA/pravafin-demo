@@ -1,6 +1,6 @@
 """Fundamentals merge (unit): valuation snapshot + latest-FY magic-formula inputs."""
 
-from coresat.services.ingestion.seed import merge_fundamentals
+import coresat.services.ingestion as csi
 
 STOCKS_CSV = b"""ticker,name,market_cap,pe_trailing,cagr_10y
 NVDA,NVIDIA Corporation,3200000000000,55.2,0.62
@@ -15,7 +15,7 @@ KO,2025,47061000000,,10714000000,0.23,6805000000,,,11373000000,,,2245000000,9236
 
 
 def test_merge_takes_latest_fiscal_year() -> None:
-    merged = merge_fundamentals(STOCKS_CSV, FINANCIALS_CSV).decode()
+    merged = csi.merge_fundamentals(STOCKS_CSV, FINANCIALS_CSV).decode()
     header, *rows = merged.strip().splitlines()
     assert "ebit" in header and "nwc" in header and "market_cap" in header
     nvda = next(row for row in rows if row.startswith("NVDA"))
@@ -24,13 +24,13 @@ def test_merge_takes_latest_fiscal_year() -> None:
 
 
 def test_merge_sums_debt_components() -> None:
-    merged = merge_fundamentals(STOCKS_CSV, FINANCIALS_CSV).decode()
+    merged = csi.merge_fundamentals(STOCKS_CSV, FINANCIALS_CSV).decode()
     ko = next(row for row in merged.splitlines() if row.startswith("KO"))
     assert "38010000000" in ko  # 36960000000 + 1050000000
 
 
 def test_missing_financials_keeps_snapshot_row() -> None:
-    merged = merge_fundamentals(
+    merged = csi.merge_fundamentals(
         b"ticker,name,market_cap\nZZZT,No Financials Inc,5\n", FINANCIALS_CSV
     ).decode()
     assert any(row.startswith("ZZZT") for row in merged.splitlines())

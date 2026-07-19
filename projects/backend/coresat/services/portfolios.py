@@ -3,8 +3,8 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.db.session import portfolio_scope
-from coresat.domain.portfolio import PortfolioCreate, PortfolioListItem
+import coresat.db as csdb
+import coresat.domain as csd
 
 
 class UnknownTickerError(ValueError):
@@ -15,12 +15,12 @@ class PortfolioService:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
 
-    async def list(self) -> list[PortfolioListItem]:
+    async def list(self) -> list[csd.PortfolioListItem]:
         async with self._engine.connect() as conn:
             rows = await conn.execute(text("SELECT * FROM list_portfolios()"))
-            return [PortfolioListItem(**row) for row in rows.mappings()]
+            return [csd.PortfolioListItem(**row) for row in rows.mappings()]
 
-    async def create(self, spec: PortfolioCreate) -> int:
+    async def create(self, spec: csd.PortfolioCreate) -> int:
         async with self._engine.begin() as conn:
             fund_id = (
                 await conn.execute(
@@ -53,7 +53,7 @@ class PortfolioService:
             ).scalar_one()
 
         satellite_weight = sum(satellite.weight for satellite in spec.satellites)
-        async with portfolio_scope(self._engine, portfolio_id) as conn:
+        async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             core_sleeve = (
                 await conn.execute(
                     text(

@@ -12,39 +12,38 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
-from coresat.db.schema import apply_schema
-from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
+import coresat.db as csdb
+import coresat.domain as csd
+import coresat.services.agent as csa
 from coresat.main import app
-from coresat.services.agent.agent import GroundedAgent
-from coresat.services.agent.graph import CANNOT_ANSWER_TEXT, OFF_TOPIC_TEXT
-from coresat.services.agent.llm import Usage
-from coresat.services.agent.service import CopilotService
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 
-_USAGE = Usage(tokens_in=11, tokens_out=7)
+_USAGE = csa.Usage(tokens_in=11, tokens_out=7)
 
 
 class ScriptedAgentLLM:
-    def __init__(self, in_scope: bool, plans: list[Plan], answers: list[Answer]) -> None:
+    def __init__(self, in_scope: bool, plans: list[csd.Plan], answers: list[csd.Answer]) -> None:
         self.in_scope: bool = in_scope
-        self.plans: list[Plan] = plans
-        self.answers: list[Answer] = answers
+        self.plans: list[csd.Plan] = plans
+        self.answers: list[csd.Answer] = answers
         self.plan_calls: int = 0
         self.contexts_seen: list[str] = []
 
-    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, csa.Usage]:
         self.contexts_seen.append(context)
-        return ScopeVerdict(in_scope=self.in_scope), _USAGE
+        return csd.ScopeVerdict(in_scope=self.in_scope), _USAGE
 
-    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+    async def plan(
+        self, query: str, context: str, replan_error: str | None
+    ) -> tuple[csd.Plan, csa.Usage]:
         plan = self.plans[min(self.plan_calls, len(self.plans) - 1)]
         self.plan_calls += 1
         return plan, _USAGE
 
     async def synthesise(
-        self, query: str, context: str, evidence: list[Evidence]
-    ) -> tuple[Answer, Usage]:
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, csa.Usage]:
         index = min(self.plan_calls - 1, len(self.answers) - 1)
         return self.answers[index], _USAGE
 
@@ -58,7 +57,7 @@ async def _connect_or_skip() -> asyncpg.Connection:
 
 async def _prepare() -> int:
     conn = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute(
         "TRUNCATE chat_messages, positions, sleeves, llm_audit_log, portfolios "
         "RESTART IDENTITY CASCADE"
@@ -91,13 +90,13 @@ def portfolio_id() -> int:
     return asyncio.run(_prepare())
 
 
-def _sql_plan() -> Plan:
-    return Plan(
+def _sql_plan() -> csd.Plan:
+    return csd.Plan(
         steps=[
-            Step(
+            csd.Step(
                 id=1,
                 question="invested?",
-                tool=ToolName.RUN_SQL,
+                tool=csd.ToolName.RUN_SQL,
                 sql="SELECT invested_amount FROM positions",
             )
         ]
@@ -108,9 +107,9 @@ def _client(llm: ScriptedAgentLLM) -> TestClient:
     test_client = TestClient(app)
     test_client.__enter__()
     state = test_client.app.state  # type: ignore[union-attr]
-    state.copilot_service = CopilotService(
+    state.copilot_service = csa.CopilotService(
         engine=state.app_engine,
-        agent=GroundedAgent(llm),
+        agent=csa.GroundedAgent(llm),
         summaries=state.analytics_service,
         rag_tool=state.rag_tool,
         model_name="scripted",
@@ -133,7 +132,7 @@ def _events(body: str) -> list[tuple[str, dict[str, object]]]:
 
 
 def test_clear_chat_wipes_only_own_history(portfolio_id: int) -> None:
-    answer = Answer(text="You invested 5000.", citations=["run_sql#1"])
+    answer = csd.Answer(text="You invested 5000.", citations=["run_sql#1"])
     client = _client(ScriptedAgentLLM(in_scope=True, plans=[_sql_plan()], answers=[answer]))
     try:
         posted = client.post(
@@ -176,7 +175,7 @@ def test_copilot_info_reports_configured_model() -> None:
 
 
 def test_chat_streams_plan_evidence_answer_and_persists(portfolio_id: int) -> None:
-    answer = Answer(text="You invested 5000.", citations=["run_sql#1"])
+    answer = csd.Answer(text="You invested 5000.", citations=["run_sql#1"])
     client = _client(ScriptedAgentLLM(in_scope=True, plans=[_sql_plan()], answers=[answer]))
     try:
         response = client.post(
@@ -222,13 +221,13 @@ def test_off_topic_chat_refuses_without_plan_event(portfolio_id: int) -> None:
         assert "plan" not in names
         answer_payload = events[-1][1]["message"]
         assert isinstance(answer_payload, dict)
-        assert answer_payload["content"] == OFF_TOPIC_TEXT
+        assert answer_payload["content"] == csa.OFF_TOPIC_TEXT
     finally:
         client.__exit__(None, None, None)
 
 
 def test_chat_to_unknown_portfolio_is_404(portfolio_id: int) -> None:
-    answer = Answer(text="irrelevant")
+    answer = csd.Answer(text="irrelevant")
     client = _client(ScriptedAgentLLM(in_scope=True, plans=[_sql_plan()], answers=[answer]))
     try:
         response = client.post("/api/portfolios/999999/chat", json={"message": "hi"})
@@ -238,7 +237,7 @@ def test_chat_to_unknown_portfolio_is_404(portfolio_id: int) -> None:
 
 
 def test_history_of_fresh_portfolio_is_empty(portfolio_id: int) -> None:
-    answer = Answer(text="irrelevant")
+    answer = csd.Answer(text="irrelevant")
     client = _client(ScriptedAgentLLM(in_scope=True, plans=[_sql_plan()], answers=[answer]))
     try:
         response = client.get(f"/api/portfolios/{portfolio_id}/chat")
@@ -263,22 +262,22 @@ def test_canned_refusals_are_excluded_from_llm_context(portfolio_id: int) -> Non
         await conn.execute(
             "INSERT INTO chat_messages (portfolio_id, role, content) VALUES ($1, 'assistant', $2)",
             portfolio_id,
-            CANNOT_ANSWER_TEXT,
+            csa.CANNOT_ANSWER_TEXT,
         )
         await conn.close()
 
     asyncio.run(_seed_cannot_answer())
 
     answering_llm = ScriptedAgentLLM(
-        in_scope=True, plans=[Plan(steps=[])], answers=[Answer(text="Hello!")]
+        in_scope=True, plans=[csd.Plan(steps=[])], answers=[csd.Answer(text="Hello!")]
     )
     answering = _client(answering_llm)
     try:
         second = answering.post(f"/api/portfolios/{portfolio_id}/chat", json={"message": "Hi"})
         assert second.status_code == 200
         assert len(answering_llm.contexts_seen) == 1
-        assert OFF_TOPIC_TEXT not in answering_llm.contexts_seen[0]
-        assert CANNOT_ANSWER_TEXT not in answering_llm.contexts_seen[0]
+        assert csa.OFF_TOPIC_TEXT not in answering_llm.contexts_seen[0]
+        assert csa.CANNOT_ANSWER_TEXT not in answering_llm.contexts_seen[0]
         assert "user: Hi" in answering_llm.contexts_seen[0]
     finally:
         answering.__exit__(None, None, None)
@@ -294,7 +293,7 @@ def test_chat_history_and_audit_are_isolated_between_portfolios(portfolio_id: in
         return int(other)
 
     other_id = asyncio.run(_second_portfolio())
-    answer = Answer(text="You invested 5000.", citations=["run_sql#1"])
+    answer = csd.Answer(text="You invested 5000.", citations=["run_sql#1"])
     client = _client(ScriptedAgentLLM(in_scope=True, plans=[_sql_plan()], answers=[answer]))
     try:
         response = client.post(

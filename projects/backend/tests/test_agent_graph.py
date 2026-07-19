@@ -4,49 +4,40 @@ self-correcting retry loop (max 5) and rag fallback."""
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import RunnableConfig
 
-from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
-from coresat.domain.rag import RetrievedChunk
-from coresat.services.agent.executor import Executor
-from coresat.services.agent.graph import (
-    CANNOT_ANSWER_TEXT,
-    MAX_ATTEMPTS,
-    OFF_TOPIC_TEXT,
-    RECURSION_LIMIT,
-    build_graph,
-    initial_state,
-)
-from coresat.services.agent.llm import Usage
-from coresat.services.agent.tools import RagSearchTool
+import coresat.domain as csd
+import coresat.services.agent as csa
 
-_USAGE = Usage(tokens_in=10, tokens_out=5)
+_USAGE = csa.Usage(tokens_in=10, tokens_out=5)
 # Loops past the default LangGraph recursion ceiling (25) reach it at 5 attempts.
-_CONFIG: RunnableConfig = {"recursion_limit": RECURSION_LIMIT}
+_CONFIG: RunnableConfig = {"recursion_limit": csa.RECURSION_LIMIT}
 
 
 class ScriptedLLM:
     """AgentLLM fake: fixed scope verdict, scripted plans and answers."""
 
-    def __init__(self, in_scope: bool, plans: list[Plan], answers: list[Answer]) -> None:
+    def __init__(self, in_scope: bool, plans: list[csd.Plan], answers: list[csd.Answer]) -> None:
         self.in_scope: bool = in_scope
-        self.plans: list[Plan] = plans
-        self.answers: list[Answer] = answers
+        self.plans: list[csd.Plan] = plans
+        self.answers: list[csd.Answer] = answers
         self.plan_calls: int = 0
         self.replan_errors_seen: list[str | None] = []
         self.scope_contexts_seen: list[str] = []
 
-    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, csa.Usage]:
         self.scope_contexts_seen.append(context)
-        return ScopeVerdict(in_scope=self.in_scope), _USAGE
+        return csd.ScopeVerdict(in_scope=self.in_scope), _USAGE
 
-    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+    async def plan(
+        self, query: str, context: str, replan_error: str | None
+    ) -> tuple[csd.Plan, csa.Usage]:
         self.replan_errors_seen.append(replan_error)
         plan = self.plans[min(self.plan_calls, len(self.plans) - 1)]
         self.plan_calls += 1
         return plan, _USAGE
 
     async def synthesise(
-        self, query: str, context: str, evidence: list[Evidence]
-    ) -> tuple[Answer, Usage]:
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, csa.Usage]:
         index = min(self.plan_calls - 1, len(self.answers) - 1)
         return self.answers[index], _USAGE
 
@@ -55,26 +46,26 @@ class StaticTool:
     def __init__(self, content: str) -> None:
         self._content: str = content
 
-    async def run(self, step: Step) -> Evidence:
-        return Evidence(step_id=step.id, source="run_sql", content=self._content, error=None)
+    async def run(self, step: csd.Step) -> csd.Evidence:
+        return csd.Evidence(step_id=step.id, source="run_sql", content=self._content, error=None)
 
 
 def _graph(llm: ScriptedLLM, evidence_content: str = "invested_amount=5000"):
-    executor = Executor({ToolName.RUN_SQL: StaticTool(evidence_content)})
-    return build_graph(llm, executor)
+    executor = csa.Executor({csd.ToolName.RUN_SQL: StaticTool(evidence_content)})
+    return csa.build_graph(llm, executor)
 
 
-def _sql_plan() -> Plan:
-    return Plan(steps=[Step(id=1, question="q", tool=ToolName.RUN_SQL, sql="SELECT 1")])
+def _sql_plan() -> csd.Plan:
+    return csd.Plan(steps=[csd.Step(id=1, question="q", tool=csd.ToolName.RUN_SQL, sql="SELECT 1")])
 
 
 async def test_user_stated_numbers_count_as_grounded() -> None:
     # capital figures come from the user, not SQL evidence — they must not
     # trip the fabrication guard
-    answer = Answer(text="With 100000 as capital you invested 5000 so far.")
+    answer = csd.Answer(text="With 100000 as capital you invested 5000 so far.")
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[answer])
     state = await _graph(llm).ainvoke(
-        initial_state("I have 100000 to invest, how much placed already?", "")
+        csa.initial_state("I have 100000 to invest, how much placed already?", "")
     )
     assert llm.plan_calls == 1
     assert state["grounded"] is True
@@ -83,19 +74,21 @@ async def test_user_stated_numbers_count_as_grounded() -> None:
 
 
 async def test_scope_guard_receives_conversation_context() -> None:
-    answer = Answer(text="It came from the projection tool over your portfolio data.")
-    llm = ScriptedLLM(in_scope=True, plans=[Plan(steps=[])], answers=[answer])
+    answer = csd.Answer(text="It came from the projection tool over your portfolio data.")
+    llm = ScriptedLLM(in_scope=True, plans=[csd.Plan(steps=[])], answers=[answer])
     context = "user: prospect in 10 years?\nassistant: expected 1747701.27"
-    state = await _graph(llm).ainvoke(initial_state("where did you get the number from?", context))
+    state = await _graph(llm).ainvoke(
+        csa.initial_state("where did you get the number from?", context)
+    )
     assert llm.scope_contexts_seen == [context]
     assert state["answer"] is not None
     assert state["answer"].text == answer.text
 
 
 async def test_greeting_with_empty_plan_answers_from_conversation() -> None:
-    answer = Answer(text="Hello! Ask me about your portfolio, funds, or stocks.")
-    llm = ScriptedLLM(in_scope=True, plans=[Plan(steps=[])], answers=[answer])
-    state = await _graph(llm).ainvoke(initial_state("Hi", "(new conversation)"))
+    answer = csd.Answer(text="Hello! Ask me about your portfolio, funds, or stocks.")
+    llm = ScriptedLLM(in_scope=True, plans=[csd.Plan(steps=[])], answers=[answer])
+    state = await _graph(llm).ainvoke(csa.initial_state("Hi", "(new conversation)"))
     assert state["answer"] is not None
     assert state["answer"].text == answer.text
     assert state["grounded"] is True
@@ -104,16 +97,16 @@ async def test_greeting_with_empty_plan_answers_from_conversation() -> None:
 
 async def test_off_topic_refused_without_planning() -> None:
     llm = ScriptedLLM(in_scope=False, plans=[_sql_plan()], answers=[])
-    state = await _graph(llm).ainvoke(initial_state("weather tomorrow?", ""))
+    state = await _graph(llm).ainvoke(csa.initial_state("weather tomorrow?", ""))
     assert state["answer"] is not None
-    assert state["answer"].text == OFF_TOPIC_TEXT
+    assert state["answer"].text == csa.OFF_TOPIC_TEXT
     assert llm.plan_calls == 0
 
 
 async def test_grounded_answer_passes_first_try() -> None:
-    answer = Answer(text="You invested 5000 in total.", citations=["run_sql#1"])
+    answer = csd.Answer(text="You invested 5000 in total.", citations=["run_sql#1"])
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[answer])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""))
+    state = await _graph(llm).ainvoke(csa.initial_state("how much invested?", ""))
     assert state["answer"] is not None
     assert state["answer"].text == answer.text
     assert state["grounded"] is True
@@ -123,10 +116,10 @@ async def test_grounded_answer_passes_first_try() -> None:
 
 
 async def test_fabricated_number_triggers_one_replan_then_success() -> None:
-    fabricated = Answer(text="You invested 123456 in total.")
-    honest = Answer(text="You invested 5000 in total.")
+    fabricated = csd.Answer(text="You invested 123456 in total.")
+    honest = csd.Answer(text="You invested 5000 in total.")
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated, honest])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""))
+    state = await _graph(llm).ainvoke(csa.initial_state("how much invested?", ""))
     assert llm.plan_calls == 2
     assert llm.replan_errors_seen[0] is None
     assert llm.replan_errors_seen[1] is not None
@@ -138,10 +131,10 @@ async def test_fabricated_number_triggers_one_replan_then_success() -> None:
 async def test_retries_until_a_grounded_answer_arrives() -> None:
     # Two fabricated attempts, then an honest one on the third (== the cap): the
     # loop keeps re-planning and returns the first grounded answer.
-    fabricated = Answer(text="You invested 123456 in total.")
-    honest = Answer(text="You invested 5000 in total.")
+    fabricated = csd.Answer(text="You invested 123456 in total.")
+    honest = csd.Answer(text="You invested 5000 in total.")
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated, fabricated, honest])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
+    state = await _graph(llm).ainvoke(csa.initial_state("how much invested?", ""), _CONFIG)
     assert llm.plan_calls == 3
     assert state["answer"] is not None
     assert state["answer"].text == honest.text
@@ -155,12 +148,12 @@ async def test_persistent_fabrication_exhausts_retries_then_refuses() -> None:
     # Nothing ever grounds the figure and the only tool is run_sql, so the rag
     # fallback finds no corpus either — after MAX_ATTEMPTS self-correcting tries
     # the agent refuses rather than emit a fabricated number.
-    fabricated = Answer(text="You invested 123456 in total.")
+    fabricated = csd.Answer(text="You invested 123456 in total.")
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
-    assert llm.plan_calls == MAX_ATTEMPTS
+    state = await _graph(llm).ainvoke(csa.initial_state("how much invested?", ""), _CONFIG)
+    assert llm.plan_calls == csa.MAX_ATTEMPTS
     assert state["answer"] is not None
-    assert state["answer"].text == CANNOT_ANSWER_TEXT
+    assert state["answer"].text == csa.CANNOT_ANSWER_TEXT
     assert state["grounded"] is False
 
 
@@ -168,18 +161,18 @@ async def test_empty_synthesis_refuses_cleanly_never_blank() -> None:
     # The synthesiser parse-failure fallback returns an empty needs_replan
     # answer. An empty answer is vacuously "number-grounded", so it must be
     # forced ungrounded and routed to an honest refusal — never streamed blank.
-    blank = Answer(text="", needs_replan=True)
+    blank = csd.Answer(text="", needs_replan=True)
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[blank])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""), _CONFIG)
+    state = await _graph(llm).ainvoke(csa.initial_state("how much invested?", ""), _CONFIG)
     assert state["answer"] is not None
-    assert state["answer"].text == CANNOT_ANSWER_TEXT
+    assert state["answer"].text == csa.CANNOT_ANSWER_TEXT
     assert state["grounded"] is False
-    assert llm.plan_calls == MAX_ATTEMPTS
+    assert llm.plan_calls == csa.MAX_ATTEMPTS
 
 
 class _FailingSqlTool:
-    async def run(self, step: Step) -> Evidence:
-        return Evidence(
+    async def run(self, step: csd.Step) -> csd.Evidence:
+        return csd.Evidence(
             step_id=step.id,
             source="run_sql",
             content="",
@@ -196,46 +189,48 @@ class _EvidenceAwareLLM:
         self.plan_calls: int = 0
         self.replan_errors_seen: list[str | None] = []
 
-    async def classify_scope(self, query: str, context: str) -> tuple[ScopeVerdict, Usage]:
-        return ScopeVerdict(in_scope=True), _USAGE
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, csa.Usage]:
+        return csd.ScopeVerdict(in_scope=True), _USAGE
 
-    async def plan(self, query: str, context: str, replan_error: str | None) -> tuple[Plan, Usage]:
+    async def plan(
+        self, query: str, context: str, replan_error: str | None
+    ) -> tuple[csd.Plan, csa.Usage]:
         self.replan_errors_seen.append(replan_error)
         self.plan_calls += 1
         return _sql_plan(), _USAGE
 
     async def synthesise(
-        self, query: str, context: str, evidence: list[Evidence]
-    ) -> tuple[Answer, Usage]:
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, csa.Usage]:
         rag = [item for item in evidence if item.source == "rag_search" and item.error is None]
         if rag:
             return (
-                Answer(
+                csd.Answer(
                     text="From the documents: IWDA is a global equity fund.",
                     citations=["rag_search#1"],
                 ),
                 _USAGE,
             )
-        return Answer(text="You invested 123456 in total."), _USAGE
+        return csd.Answer(text="You invested 123456 in total."), _USAGE
 
 
 async def test_sql_failures_fall_back_to_rag_after_exhausting_retries() -> None:
     # The run_sql tool errors on every attempt; after the retry cap the graph
     # runs one rag_search fallback and answers from the retrieved document.
-    chunk = RetrievedChunk(
+    chunk = csd.RetrievedChunk(
         source_doc="iwda.pdf", page=1, text="IWDA is a global equity fund.", score=0.9
     )
-    executor = Executor(
+    executor = csa.Executor(
         {
-            ToolName.RUN_SQL: _FailingSqlTool(),
-            ToolName.RAG_SEARCH: RagSearchTool(_FakeRetriever([chunk]), k=4),
+            csd.ToolName.RUN_SQL: _FailingSqlTool(),
+            csd.ToolName.RAG_SEARCH: csa.RagSearchTool(_FakeRetriever([chunk]), k=4),
         }
     )
     llm = _EvidenceAwareLLM()
-    state = await build_graph(llm, executor).ainvoke(
-        initial_state("how much invested?", ""), _CONFIG
+    state = await csa.build_graph(llm, executor).ainvoke(
+        csa.initial_state("how much invested?", ""), _CONFIG
     )
-    assert llm.plan_calls == MAX_ATTEMPTS  # SQL retried to the cap, then stopped
+    assert llm.plan_calls == csa.MAX_ATTEMPTS  # SQL retried to the cap, then stopped
     assert all(err is not None for err in llm.replan_errors_seen[1:])  # errors fed back
     assert state["answer"] is not None
     assert state["answer"].text.startswith("From the documents")
@@ -244,10 +239,10 @@ async def test_sql_failures_fall_back_to_rag_after_exhausting_retries() -> None:
 
 
 async def test_synthesiser_requested_replan_honoured_once() -> None:
-    incomplete = Answer(text="Partial answer with 5000.", needs_replan=True)
-    complete = Answer(text="Full answer with 5000.")
+    incomplete = csd.Answer(text="Partial answer with 5000.", needs_replan=True)
+    complete = csd.Answer(text="Full answer with 5000.")
     llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[incomplete, complete])
-    state = await _graph(llm).ainvoke(initial_state("how much invested?", ""))
+    state = await _graph(llm).ainvoke(csa.initial_state("how much invested?", ""))
     assert llm.plan_calls == 2
     assert state["answer"] is not None
     assert state["answer"].text == complete.text
@@ -256,23 +251,23 @@ async def test_synthesiser_requested_replan_honoured_once() -> None:
 def test_plan_parser_accepts_bare_step_list() -> None:
     # qwen frequently returns the steps array directly instead of {"steps": [...]}.
     # The Plan before-validator must recover it, or the planner degrades to empty.
-    parser: PydanticOutputParser[Plan] = PydanticOutputParser(pydantic_object=Plan)
+    parser: PydanticOutputParser[csd.Plan] = PydanticOutputParser(pydantic_object=csd.Plan)
     plan = parser.parse('[{"id": 1, "question": "q", "tool": "run_sql", "sql": "SELECT 1"}]')
     assert len(plan.steps) == 1
-    assert plan.steps[0].tool == ToolName.RUN_SQL
+    assert plan.steps[0].tool == csd.ToolName.RUN_SQL
 
 
 def test_plan_parser_still_accepts_wrapped_object() -> None:
-    parser: PydanticOutputParser[Plan] = PydanticOutputParser(pydantic_object=Plan)
+    parser: PydanticOutputParser[csd.Plan] = PydanticOutputParser(pydantic_object=csd.Plan)
     plan = parser.parse('{"steps": [{"id": 1, "question": "q", "tool": "gap"}]}')
-    assert plan.steps[0].tool == ToolName.GAP
+    assert plan.steps[0].tool == csd.ToolName.GAP
 
 
 class _FakeRetriever:
-    def __init__(self, chunks: list[RetrievedChunk]) -> None:
-        self._chunks: list[RetrievedChunk] = chunks
+    def __init__(self, chunks: list[csd.RetrievedChunk]) -> None:
+        self._chunks: list[csd.RetrievedChunk] = chunks
 
-    async def retrieve(self, query: str, k: int) -> list[RetrievedChunk]:
+    async def retrieve(self, query: str, k: int) -> list[csd.RetrievedChunk]:
         return self._chunks
 
 
@@ -280,21 +275,27 @@ async def test_rag_search_step_routes_to_rag_tool_and_grounds_document_number() 
     # A planner-chosen rag_search step must reach RagSearchTool, and a figure
     # quoted from the retrieved chunk must count as grounded (evidence numbers
     # feed the fabrication guard) — otherwise the answer would be refused.
-    chunk = RetrievedChunk(
+    chunk = csd.RetrievedChunk(
         source_doc="iwda.pdf",
         page=2,
         text="The fund holds about 1500 companies across developed markets.",
         score=0.9,
     )
-    executor = Executor({ToolName.RAG_SEARCH: RagSearchTool(_FakeRetriever([chunk]), k=4)})
-    plan = Plan(
-        steps=[Step(id=1, question="how many holdings does IWDA have", tool=ToolName.RAG_SEARCH)]
+    executor = csa.Executor(
+        {csd.ToolName.RAG_SEARCH: csa.RagSearchTool(_FakeRetriever([chunk]), k=4)}
     )
-    answer = Answer(text="IWDA holds about 1500 companies.", citations=["rag_search#1"])
+    plan = csd.Plan(
+        steps=[
+            csd.Step(
+                id=1, question="how many holdings does IWDA have", tool=csd.ToolName.RAG_SEARCH
+            )
+        ]
+    )
+    answer = csd.Answer(text="IWDA holds about 1500 companies.", citations=["rag_search#1"])
     llm = ScriptedLLM(in_scope=True, plans=[plan], answers=[answer])
 
-    state = await build_graph(llm, executor).ainvoke(
-        initial_state("how many holdings does IWDA have?", "")
+    state = await csa.build_graph(llm, executor).ainvoke(
+        csa.initial_state("how many holdings does IWDA have?", "")
     )
 
     assert llm.plan_calls == 1  # grounded on the first try, no re-plan
@@ -309,16 +310,22 @@ async def test_rag_search_step_routes_to_rag_tool_and_grounds_document_number() 
 async def test_ungrounded_document_number_is_refused() -> None:
     # A number that appears in NO chunk must not survive — the rag path is held
     # to the same grounding bar as run_sql.
-    chunk = RetrievedChunk(source_doc="iwda.pdf", page=1, text="A global equity fund.", score=0.5)
-    executor = Executor({ToolName.RAG_SEARCH: RagSearchTool(_FakeRetriever([chunk]), k=4)})
-    plan = Plan(steps=[Step(id=1, question="how many holdings", tool=ToolName.RAG_SEARCH)])
-    fabricated = Answer(text="IWDA holds 4321 companies.", citations=["rag_search#1"])
+    chunk = csd.RetrievedChunk(
+        source_doc="iwda.pdf", page=1, text="A global equity fund.", score=0.5
+    )
+    executor = csa.Executor(
+        {csd.ToolName.RAG_SEARCH: csa.RagSearchTool(_FakeRetriever([chunk]), k=4)}
+    )
+    plan = csd.Plan(
+        steps=[csd.Step(id=1, question="how many holdings", tool=csd.ToolName.RAG_SEARCH)]
+    )
+    fabricated = csd.Answer(text="IWDA holds 4321 companies.", citations=["rag_search#1"])
     llm = ScriptedLLM(in_scope=True, plans=[plan], answers=[fabricated, fabricated])
 
-    state = await build_graph(llm, executor).ainvoke(
-        initial_state("how many holdings?", ""), _CONFIG
+    state = await csa.build_graph(llm, executor).ainvoke(
+        csa.initial_state("how many holdings?", ""), _CONFIG
     )
 
     assert state["answer"] is not None
-    assert state["answer"].text == CANNOT_ANSWER_TEXT
+    assert state["answer"].text == csa.CANNOT_ANSWER_TEXT
     assert state["grounded"] is False

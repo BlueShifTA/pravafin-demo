@@ -16,9 +16,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.domain.agent import DraftPosition, PortfolioDraft, ToolName
-from coresat.domain.draft import ChatTurn
-from coresat.domain.portfolio import CorePick, PortfolioCreate, SatellitePick
+import coresat.domain as csd
 from coresat.services.agent.agent import (
     AnswerReady,
     EvidenceGathered,
@@ -34,20 +32,20 @@ _WEIGHT_TOLERANCE = 0.01
 
 
 class PortfolioCreator(Protocol):
-    async def create(self, spec: PortfolioCreate) -> int: ...
+    async def create(self, spec: csd.PortfolioCreate) -> int: ...
 
 
 def _sse(event: str, payload: dict[str, object]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
 
-def _render_context(history: list[ChatTurn]) -> str:
+def _render_context(history: list[csd.ChatTurn]) -> str:
     if not history:
         return "(new conversation)"
     return "\n".join(f"{turn.role}: {turn.content}" for turn in history)
 
 
-def _normalize_draft(draft: PortfolioDraft) -> PortfolioDraft:
+def _normalize_draft(draft: csd.PortfolioDraft) -> csd.PortfolioDraft:
     # A small model's proposed weights often miss summing to 1 (e.g. 1.06). Scale
     # core + satellites so they sum to 1 before the user sees or builds the draft,
     # so a good recommendation is never rejected by the create weight check.
@@ -65,14 +63,14 @@ def _normalize_draft(draft: PortfolioDraft) -> PortfolioDraft:
     )
 
 
-def _draft_to_spec(draft: PortfolioDraft) -> PortfolioCreate:
-    return PortfolioCreate(
+def _draft_to_spec(draft: csd.PortfolioDraft) -> csd.PortfolioCreate:
+    return csd.PortfolioCreate(
         name=draft.name,
         initial_capital=draft.initial_capital,
         monthly_contribution=draft.monthly_contribution,
-        core=CorePick(fund_ticker=draft.core_fund_ticker, weight=draft.core_weight),
+        core=csd.CorePick(fund_ticker=draft.core_fund_ticker, weight=draft.core_weight),
         satellites=[
-            SatellitePick(ticker=position.ticker, weight=position.weight, acquired_at=None)
+            csd.SatellitePick(ticker=position.ticker, weight=position.weight, acquired_at=None)
             for position in draft.satellites
         ],
     )
@@ -94,8 +92,8 @@ class DraftService:
     async def stream_chat(
         self,
         message: str,
-        history: list[ChatTurn],
-        proposed_draft: PortfolioDraft | None,
+        history: list[csd.ChatTurn],
+        proposed_draft: csd.PortfolioDraft | None,
         confirm: bool,
     ) -> AsyncIterator[str]:
         # Explicit user confirmation of a shown proposal → create deterministically,
@@ -105,9 +103,9 @@ class DraftService:
                 yield chunk
             return
         context = _render_context(history)
-        tools: dict[ToolName, Tool] = {
-            ToolName.RUN_SQL: FactSqlTool(engine=self._engine),
-            ToolName.RAG_SEARCH: self._rag_tool,
+        tools: dict[csd.ToolName, Tool] = {
+            csd.ToolName.RUN_SQL: FactSqlTool(engine=self._engine),
+            csd.ToolName.RAG_SEARCH: self._rag_tool,
         }
         answer = None
         try:
@@ -137,7 +135,7 @@ class DraftService:
                 yield chunk
             return
 
-        draft: PortfolioDraft | None = None
+        draft: csd.PortfolioDraft | None = None
         note = ""
         if answer.draft is not None:
             resolved, resolve_note = await self._resolve_draft(answer.draft)
@@ -153,8 +151,8 @@ class DraftService:
         yield _sse("answer", payload)
 
     async def _resolve_draft(
-        self, draft: PortfolioDraft
-    ) -> tuple[PortfolioDraft | None, str | None]:
+        self, draft: csd.PortfolioDraft
+    ) -> tuple[csd.PortfolioDraft | None, str | None]:
         # The model often names a ticker that is not exactly in the DB — a
         # dropped exchange suffix (CSPX for CSPX.L) or a stock as the core (HD).
         # Resolve the core against funds and each satellite against instruments
@@ -176,7 +174,7 @@ class DraftService:
             ).scalar()
             if core is None:
                 return None, f"no ETF in the database matches the core '{draft.core_fund_ticker}'"
-            satellites: list[DraftPosition] = []
+            satellites: list[csd.DraftPosition] = []
             dropped: list[str] = []
             for position in draft.satellites:
                 resolved = (
@@ -211,7 +209,7 @@ class DraftService:
             note,
         )
 
-    async def _create(self, draft: PortfolioDraft) -> AsyncIterator[str]:
+    async def _create(self, draft: csd.PortfolioDraft) -> AsyncIterator[str]:
         total = draft.core_weight + sum(position.weight for position in draft.satellites)
         if abs(total - 1.0) > _WEIGHT_TOLERANCE:
             yield _sse(

@@ -10,7 +10,7 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
-from coresat.db.schema import apply_schema
+import coresat.db as csdb
 from coresat.main import app
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
@@ -30,7 +30,7 @@ async def _connect_or_skip() -> asyncpg.Connection:
 
 async def _prepare() -> None:
     conn = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute("TRUNCATE ingest_quarantine, ingest_runs RESTART IDENTITY CASCADE")
     await conn.close()
 

@@ -14,9 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from coresat.db.session import portfolio_scope
-from coresat.domain.agent import Answer, Evidence, ToolName
-from coresat.domain.chat import AuditEntry, ChatMessageOut, Citation
+import coresat.db as csdb
+import coresat.domain as csd
 from coresat.services.agent.agent import (
     AnswerReady,
     EvidenceGathered,
@@ -44,10 +43,10 @@ def _sse(event: str, payload: dict[str, object]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
 
-def _citations_of(answer: Answer, evidence: list[Evidence]) -> list[Citation]:
+def _citations_of(answer: csd.Answer, evidence: list[csd.Evidence]) -> list[csd.Citation]:
     bodies = {f"{item.source}#{item.step_id}": item.content for item in evidence}
     return [
-        Citation(id=citation_id, content=bodies[citation_id])
+        csd.Citation(id=citation_id, content=bodies[citation_id])
         for citation_id in answer.citations
         if citation_id in bodies
     ]
@@ -68,8 +67,8 @@ class CopilotService:
         self._rag_tool: Tool = rag_tool
         self.model_name: str = model_name
 
-    async def history(self, portfolio_id: int) -> list[ChatMessageOut]:
-        async with portfolio_scope(self._engine, portfolio_id) as conn:
+    async def history(self, portfolio_id: int) -> list[csd.ChatMessageOut]:
+        async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             rows = (
                 (
                     await conn.execute(
@@ -83,11 +82,11 @@ class CopilotService:
                 .all()
             )
         return [
-            ChatMessageOut(
+            csd.ChatMessageOut(
                 id=row["id"],
                 role=row["role"],
                 content=row["content"],
-                citations=[Citation(**entry) for entry in row["citations"]],
+                citations=[csd.Citation(**entry) for entry in row["citations"]],
                 tokens_in=row["tokens_in"],
                 tokens_out=row["tokens_out"],
                 created_at=row["created_at"],
@@ -95,8 +94,8 @@ class CopilotService:
             for row in rows
         ]
 
-    async def audit(self, portfolio_id: int) -> list[AuditEntry]:
-        async with portfolio_scope(self._engine, portfolio_id) as conn:
+    async def audit(self, portfolio_id: int) -> list[csd.AuditEntry]:
+        async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             rows = (
                 (
                     await conn.execute(
@@ -109,15 +108,15 @@ class CopilotService:
                 .mappings()
                 .all()
             )
-        return [AuditEntry(**dict(row)) for row in rows]
+        return [csd.AuditEntry(**dict(row)) for row in rows]
 
     async def clear_history(self, portfolio_id: int) -> None:
-        async with portfolio_scope(self._engine, portfolio_id) as conn:
+        async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             await conn.execute(text("DELETE FROM chat_messages"))
 
     async def record_user_message(self, portfolio_id: int, message: str) -> None:
         try:
-            async with portfolio_scope(self._engine, portfolio_id) as conn:
+            async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
                 await conn.execute(
                     text(
                         "INSERT INTO chat_messages (portfolio_id, role, content) "
@@ -130,15 +129,15 @@ class CopilotService:
 
     async def stream_chat(self, portfolio_id: int, message: str) -> AsyncIterator[str]:
         context = self._render_context(await self.history(portfolio_id))
-        tools: dict[ToolName, Tool] = {
-            ToolName.RUN_SQL: RunSqlTool(engine=self._engine, portfolio_id=portfolio_id),
-            ToolName.GET_PROJECTION: GetProjectionTool(
+        tools: dict[csd.ToolName, Tool] = {
+            csd.ToolName.RUN_SQL: RunSqlTool(engine=self._engine, portfolio_id=portfolio_id),
+            csd.ToolName.GET_PROJECTION: GetProjectionTool(
                 summaries=self._summaries, portfolio_id=portfolio_id
             ),
-            ToolName.RAG_SEARCH: self._rag_tool,
+            csd.ToolName.RAG_SEARCH: self._rag_tool,
         }
-        answer: Answer | None = None
-        evidence: list[Evidence] = []
+        answer: csd.Answer | None = None
+        evidence: list[csd.Evidence] = []
         usage: list[NodeUsage] = []
         try:
             async for event in self._agent.run(message, context, tools):
@@ -167,7 +166,7 @@ class CopilotService:
         )
         yield _sse("answer", {"message": stored.model_dump(mode="json")})
 
-    def _render_context(self, messages: list[ChatMessageOut]) -> str:
+    def _render_context(self, messages: list[csd.ChatMessageOut]) -> str:
         # canned texts stay visible in the UI history but never reach the
         # model again — a small model treats a past "Hi → refusal" pair as
         # precedent and keeps refusing (context poisoning)
@@ -181,14 +180,14 @@ class CopilotService:
     async def _persist_turn(
         self,
         portfolio_id: int,
-        answer: Answer,
-        citations: list[Citation],
+        answer: csd.Answer,
+        citations: list[csd.Citation],
         tokens_in: int,
         tokens_out: int,
         usage: list[NodeUsage],
-    ) -> ChatMessageOut:
+    ) -> csd.ChatMessageOut:
         graph_run_id = uuid.uuid4().hex
-        async with portfolio_scope(self._engine, portfolio_id) as conn:
+        async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             row = (
                 await conn.execute(
                     text(
@@ -222,7 +221,7 @@ class CopilotService:
                         "tokens_out": entry["tokens_out"],
                     },
                 )
-        return ChatMessageOut(
+        return csd.ChatMessageOut(
             id=row.id,
             role="assistant",
             content=answer.text,

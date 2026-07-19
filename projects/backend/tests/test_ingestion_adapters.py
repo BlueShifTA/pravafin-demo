@@ -1,12 +1,6 @@
 """Adapter parsing (unit): typed records out, malformed rows rejected with reasons."""
 
-from coresat.services.ingestion.adapters import (
-    DailyPricesCsvAdapter,
-    FundamentalsCsvAdapter,
-    FundsCsvAdapter,
-    ISharesHoldingsCsvAdapter,
-    UniverseCsvAdapter,
-)
+import coresat.services.ingestion as csi
 
 UNIVERSE_CSV = b"""ticker,type,sector,industry
 NVDA,stock,semiconductor,Semiconductors
@@ -48,7 +42,7 @@ VOO,Vanguard S&P 500 ETF,Vanguard,Large Blend,USD,1300000000000,0.03,,,0.99,0.15
 
 
 def test_universe_adapter_splits_valid_and_rejects() -> None:
-    valid, rejects = UniverseCsvAdapter().parse(UNIVERSE_CSV, None)
+    valid, rejects = csi.UniverseCsvAdapter().parse(UNIVERSE_CSV, None)
     assert [r.ticker for r in valid] == ["NVDA", "IWDA.AS"]
     assert valid[0].type == "stock"
     assert len(rejects) == 1
@@ -56,7 +50,7 @@ def test_universe_adapter_splits_valid_and_rejects() -> None:
 
 
 def test_daily_prices_adapter_handles_yfinance_multiheader() -> None:
-    valid, rejects = DailyPricesCsvAdapter().parse(YFINANCE_DAILY_CSV, None)
+    valid, rejects = csi.DailyPricesCsvAdapter().parse(YFINANCE_DAILY_CSV, None)
     assert len(valid) == 2
     assert valid[0].ticker == "NVDA"
     assert str(valid[0].date) == "2024-01-02"
@@ -72,7 +66,7 @@ FLAT_DAILY_CSV = b"""Date,Open,High,Low,Close,Volume,Dividends,Stock Splits
 
 
 def test_daily_prices_adapter_handles_flat_history_format() -> None:
-    valid, rejects = DailyPricesCsvAdapter().parse(FLAT_DAILY_CSV, "AON")
+    valid, rejects = csi.DailyPricesCsvAdapter().parse(FLAT_DAILY_CSV, "AON")
     assert len(valid) == 2
     assert valid[0].ticker == "AON"
     assert str(valid[0].date) == "2024-01-02"
@@ -81,7 +75,7 @@ def test_daily_prices_adapter_handles_flat_history_format() -> None:
 
 
 def test_ishares_adapter_strips_bom_and_preamble() -> None:
-    valid, rejects = ISharesHoldingsCsvAdapter().parse(ISHARES_CSV, "IWDA.AS")
+    valid, rejects = csi.ISharesHoldingsCsvAdapter().parse(ISHARES_CSV, "IWDA.AS")
     assert [h.ticker for h in valid] == ["NVDA", "MSFT"]
     assert valid[0].fund_ticker == "IWDA.AS"
     assert valid[0].fund_name == "iShares Core MSCI World UCITS ETF"
@@ -90,7 +84,7 @@ def test_ishares_adapter_strips_bom_and_preamble() -> None:
 
 
 def test_fundamentals_adapter_rejects_non_numeric() -> None:
-    valid, rejects = FundamentalsCsvAdapter().parse(FUNDAMENTALS_CSV, None)
+    valid, rejects = csi.FundamentalsCsvAdapter().parse(FUNDAMENTALS_CSV, None)
     assert len(valid) == 1
     assert valid[0].ticker == "NVDA"
     assert valid[0].ebit == 71033000000
@@ -99,7 +93,7 @@ def test_fundamentals_adapter_rejects_non_numeric() -> None:
 
 def test_fundamentals_adapter_nullifies_nan_and_inf() -> None:
     payload = b"ticker,name,market_cap,ebit\nNANX,NaN Corp,nan,5000\nINFX,Inf Corp,inf,-inf\n"
-    valid, rejects = FundamentalsCsvAdapter().parse(payload, None)
+    valid, rejects = csi.FundamentalsCsvAdapter().parse(payload, None)
     assert rejects == []
     nanx = next(record for record in valid if record.ticker == "NANX")
     assert nanx.market_cap is None
@@ -110,7 +104,7 @@ def test_fundamentals_adapter_nullifies_nan_and_inf() -> None:
 
 
 def test_funds_adapter_requires_ticker() -> None:
-    valid, rejects = FundsCsvAdapter().parse(FUNDS_CSV, None)
+    valid, rejects = csi.FundsCsvAdapter().parse(FUNDS_CSV, None)
     assert [f.ticker for f in valid] == ["IWDA.AS", "VOO"]
     assert valid[0].ter == 0.2
     assert len(rejects) == 1

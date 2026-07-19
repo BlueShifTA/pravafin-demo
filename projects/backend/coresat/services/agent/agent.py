@@ -9,7 +9,7 @@ instance; a policy fix here fixes every agent.
 from collections.abc import AsyncIterator
 from typing import NamedTuple
 
-from coresat.domain.agent import Answer, Evidence, Plan, ToolName
+import coresat.domain as csd
 from coresat.services.agent.executor import Executor
 from coresat.services.agent.graph import (
     RECURSION_LIMIT,
@@ -22,16 +22,16 @@ from coresat.services.agent.tools import Tool
 
 
 class PlanEmitted(NamedTuple):
-    plan: Plan
+    plan: csd.Plan
 
 
 class EvidenceGathered(NamedTuple):
-    evidence: list[Evidence]
+    evidence: list[csd.Evidence]
 
 
 class AnswerReady(NamedTuple):
-    answer: Answer
-    evidence: list[Evidence]
+    answer: csd.Answer
+    evidence: list[csd.Evidence]
     usage: list[NodeUsage]
 
 
@@ -43,11 +43,11 @@ class GroundedAgent:
         self._llm: AgentLLM = llm
 
     async def run(
-        self, query: str, context: str, tools: dict[ToolName, Tool]
+        self, query: str, context: str, tools: dict[csd.ToolName, Tool]
     ) -> AsyncIterator[AgentEvent]:
         graph = build_graph(self._llm, Executor(tools))
-        answer: Answer | None = None
-        evidence: list[Evidence] = []
+        answer: csd.Answer | None = None
+        evidence: list[csd.Evidence] = []
         usage: list[NodeUsage] = []
         async for update in graph.astream(
             initial_state(query, context),
@@ -58,12 +58,12 @@ class GroundedAgent:
                 if "usage" in node_state:
                     usage = list(node_state["usage"])
                 plan = node_state.get("plan")
-                if isinstance(plan, Plan):
+                if isinstance(plan, csd.Plan):
                     yield PlanEmitted(plan=plan)
                 if "evidence" in node_state:
                     evidence = list(node_state["evidence"])
                     yield EvidenceGathered(evidence=evidence)
-                if isinstance(node_state.get("answer"), Answer):
+                if isinstance(node_state.get("answer"), csd.Answer):
                     answer = node_state["answer"]
         if answer is None:  # a graph bug, not a user error — surface loudly
             raise RuntimeError("agent graph produced no answer")

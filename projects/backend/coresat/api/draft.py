@@ -3,19 +3,19 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from coresat.domain.draft import DraftChatRequest
-from coresat.services.agent.draft_service import DraftService
+import coresat.domain as csd
+import coresat.services.agent as csa
 
 router = APIRouter(prefix="/portfolio-draft", tags=["draft"])
 
 
-def _service(request: Request) -> DraftService:
-    service: DraftService = request.app.state.draft_service
+def _service(request: Request) -> csa.DraftService:
+    service: csa.DraftService = request.app.state.draft_service
     return service
 
 
 @router.post("/chat")
-async def draft_chat(body: DraftChatRequest, request: Request) -> StreamingResponse:
+async def draft_chat(body: csd.DraftChatRequest, request: Request) -> StreamingResponse:
     service = _service(request)
     return StreamingResponse(
         service.stream_chat(body.message, body.history, body.proposed_draft, body.confirm),

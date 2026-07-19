@@ -14,11 +14,10 @@ import pytest
 from _pdfgen import make_text_pdf
 from fastapi.testclient import TestClient
 
-from coresat.core.config import get_settings
-from coresat.domain.agent import ToolName
+import coresat.core as csc
+import coresat.domain as csd
+import coresat.services.agent as csa
 from coresat.main import app
-from coresat.services.agent.llm import COPILOT_PROMPTS, ChatModelAgentLLM
-from coresat.services.agent.provider import build_chat_model
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("CORESAT_REAL_LLM") != "1",
@@ -26,9 +25,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _planner() -> ChatModelAgentLLM:
-    settings = get_settings()
-    return ChatModelAgentLLM(build_chat_model(settings.copilot_provider, settings), COPILOT_PROMPTS)
+def _planner() -> csa.ChatModelAgentLLM:
+    settings = csc.get_settings()
+    return csa.ChatModelAgentLLM(
+        csa.build_chat_model(settings.copilot_provider, settings), csa.COPILOT_PROMPTS
+    )
 
 
 async def test_document_query_routes_to_rag_search() -> None:
@@ -38,20 +39,22 @@ async def test_document_query_routes_to_rag_search() -> None:
         None,
     )
     tools = {step.tool for step in plan.steps}
-    assert ToolName.RAG_SEARCH in tools, f"expected rag_search, planned {tools}"
+    assert csd.ToolName.RAG_SEARCH in tools, f"expected rag_search, planned {tools}"
 
 
 async def test_fundamentals_query_routes_to_run_sql_not_rag() -> None:
     plan, _ = await _planner().plan("What is NVDA's trailing P/E ratio?", "", None)
     tools = {step.tool for step in plan.steps}
-    assert ToolName.RUN_SQL in tools, f"expected run_sql, planned {tools}"
-    assert ToolName.RAG_SEARCH not in tools, f"a fundamentals figure should not go to rag: {tools}"
+    assert csd.ToolName.RUN_SQL in tools, f"expected run_sql, planned {tools}"
+    assert csd.ToolName.RAG_SEARCH not in tools, (
+        f"a fundamentals figure should not go to rag: {tools}"
+    )
 
 
 async def test_portfolio_value_query_routes_to_get_projection() -> None:
     plan, _ = await _planner().plan("What is my portfolio worth right now?", "", None)
     tools = {step.tool for step in plan.steps}
-    assert ToolName.GET_PROJECTION in tools, f"expected get_projection, planned {tools}"
+    assert csd.ToolName.GET_PROJECTION in tools, f"expected get_projection, planned {tools}"
 
 
 async def test_named_fund_cagr_routes_to_run_sql_not_projection() -> None:
@@ -59,8 +62,8 @@ async def test_named_fund_cagr_routes_to_run_sql_not_projection() -> None:
     # the whole-portfolio projection. Regression guard for the SCHG mis-route.
     plan, _ = await _planner().plan("What is the 10-year CAGR of the SCHG fund?", "", None)
     tools = {step.tool for step in plan.steps}
-    assert ToolName.RUN_SQL in tools, f"a named fund's CAGR is a funds lookup: {tools}"
-    assert ToolName.GET_PROJECTION not in tools, f"get_projection is portfolio-only: {tools}"
+    assert csd.ToolName.RUN_SQL in tools, f"a named fund's CAGR is a funds lookup: {tools}"
+    assert csd.ToolName.GET_PROJECTION not in tools, f"get_projection is portfolio-only: {tools}"
 
 
 def _events(body: str) -> list[tuple[str, object]]:

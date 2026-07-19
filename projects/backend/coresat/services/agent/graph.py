@@ -13,7 +13,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from coresat.domain.agent import Answer, Evidence, Plan, ScopeVerdict, Step, ToolName
+import coresat.domain as csd
 from coresat.services.agent.executor import Executor
 from coresat.services.agent.llm import AgentLLM
 from coresat.services.grounding import extract_numbers, numbers_grounded
@@ -47,10 +47,10 @@ class NodeUsage(TypedDict):
 class AgentState(TypedDict):
     query: str
     context: str
-    scope: ScopeVerdict | None
-    plan: Plan | None
-    evidence: list[Evidence]
-    answer: Answer | None
+    scope: csd.ScopeVerdict | None
+    plan: csd.Plan | None
+    evidence: list[csd.Evidence]
+    answer: csd.Answer | None
     grounded: bool
     attempts: int
     rag_tried: bool
@@ -91,7 +91,7 @@ def build_graph(
     async def refuse(state: AgentState) -> dict[str, object]:  # noqa: ARG001
         # LangGraph node signatures require the parameter named `state`,
         # even though this node only writes a constant update.
-        return {"answer": Answer(text=OFF_TOPIC_TEXT), "grounded": True}
+        return {"answer": csd.Answer(text=OFF_TOPIC_TEXT), "grounded": True}
 
     async def planner(state: AgentState) -> dict[str, object]:
         plan, usage = await llm.plan(state["query"], state["context"], state["validation_error"])
@@ -154,7 +154,9 @@ def build_graph(
         # refusing, try the shared document corpus: one rag_search on the user's
         # question, then synthesise from whatever it returns. Both agents wire a
         # rag_search tool, so this always has somewhere to look.
-        fallback_plan = Plan(steps=[Step(id=1, question=state["query"], tool=ToolName.RAG_SEARCH)])
+        fallback_plan = csd.Plan(
+            steps=[csd.Step(id=1, question=state["query"], tool=csd.ToolName.RAG_SEARCH)]
+        )
         evidence = await executor.execute(fallback_plan)
         answer, usage = await llm.synthesise(state["query"], state["context"], evidence)
         return {
@@ -166,7 +168,7 @@ def build_graph(
         }
 
     async def give_up(state: AgentState) -> dict[str, object]:  # noqa: ARG001
-        return {"answer": Answer(text=CANNOT_ANSWER_TEXT)}
+        return {"answer": csd.Answer(text=CANNOT_ANSWER_TEXT)}
 
     def route_after_scope(state: AgentState) -> str:
         scope = state["scope"]

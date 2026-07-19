@@ -16,9 +16,9 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.language_models import FakeListChatModel
 
-from coresat.db.schema import apply_schema
+import coresat.db as csdb
+import coresat.services as css
 from coresat.main import app
-from coresat.services.comparison import ComparisonService
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
 APP_URL = "postgresql+asyncpg://coresat_app:coresat_app@localhost:5434/coresat_test"
@@ -79,7 +79,7 @@ async def _connect_or_skip() -> asyncpg.Connection:
 
 async def _prepare() -> int:
     conn = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute(
         "DELETE FROM fundamentals WHERE instrument_id IN "
         "(SELECT id FROM instruments WHERE ticker IN ('TSTA','TSTB'))"
@@ -113,7 +113,7 @@ def _client_with_fake_llm(responses: list[str]) -> TestClient:
     test_client.__enter__()
     fake = FakeListChatModel(responses=responses)
     state = test_client.app.state  # type: ignore[union-attr]
-    state.comparison_service = ComparisonService(engine=state.app_engine, llm=fake)
+    state.comparison_service = css.ComparisonService(engine=state.app_engine, llm=fake)
     return test_client
 
 

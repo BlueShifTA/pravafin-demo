@@ -5,7 +5,7 @@ per-day series in one pass — recomputing the MACD signal line per day from
 scratch would be cubic in history length.
 """
 
-from coresat.domain.portfolio import CandleBar, IndicatorPoint
+import coresat.domain as csd
 
 
 def sma_series(values: list[float], period: int) -> list[float | None]:
@@ -76,7 +76,7 @@ def macd_series(
     return macd, signal_full
 
 
-def indicator_points(bars: list[CandleBar]) -> list[IndicatorPoint]:
+def indicator_points(bars: list[csd.CandleBar]) -> list[csd.IndicatorPoint]:
     closes = [bar.close for bar in bars]
     sma_20 = sma_series(closes, 20)
     sma_50 = sma_series(closes, 50)
@@ -86,7 +86,7 @@ def indicator_points(bars: list[CandleBar]) -> list[IndicatorPoint]:
     rsi = rsi_series(closes, 14)
     macd, macd_signal = macd_series(closes, 12, 26, 9)
     return [
-        IndicatorPoint(
+        csd.IndicatorPoint(
             date=bar.date,
             close=bar.close,
             sma_20=s20,

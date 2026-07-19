@@ -10,7 +10,7 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
-from coresat.db.schema import apply_schema
+import coresat.db as csdb
 from coresat.main import app
 
 ADMIN_DSN = "postgresql://postgres:postgres@localhost:5434/coresat_test"
@@ -25,7 +25,7 @@ async def _connect_or_skip() -> asyncpg.Connection:
 
 async def _seed_prices(days: int) -> None:
     conn = await _connect_or_skip()
-    await apply_schema(ADMIN_DSN)
+    await csdb.apply_schema(ADMIN_DSN)
     await conn.execute(
         "DELETE FROM prices_daily WHERE instrument_id IN "
         "(SELECT id FROM instruments WHERE ticker = 'TSTI')"

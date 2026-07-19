@@ -3,24 +3,24 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from coresat.domain.chat import AuditEntry, ChatMessageOut, ChatRequest, CopilotInfo
-from coresat.services.agent.service import CopilotService, PortfolioNotFoundError
+import coresat.domain as csd
+import coresat.services.agent as csa
 
 router = APIRouter(prefix="/portfolios", tags=["copilot"])
 info_router = APIRouter(prefix="/copilot", tags=["copilot"])
 
 
-def _service(request: Request) -> CopilotService:
-    service: CopilotService = request.app.state.copilot_service
+def _service(request: Request) -> csa.CopilotService:
+    service: csa.CopilotService = request.app.state.copilot_service
     return service
 
 
 @router.post("/{portfolio_id}/chat")
-async def chat(portfolio_id: int, body: ChatRequest, request: Request) -> StreamingResponse:
+async def chat(portfolio_id: int, body: csd.ChatRequest, request: Request) -> StreamingResponse:
     service = _service(request)
     try:
         await service.record_user_message(portfolio_id, body.message)
-    except PortfolioNotFoundError as error:
+    except csa.PortfolioNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     return StreamingResponse(
         service.stream_chat(portfolio_id, body.message), media_type="text/event-stream"
@@ -28,7 +28,7 @@ async def chat(portfolio_id: int, body: ChatRequest, request: Request) -> Stream
 
 
 @router.get("/{portfolio_id}/chat")
-async def chat_history(portfolio_id: int, request: Request) -> list[ChatMessageOut]:
+async def chat_history(portfolio_id: int, request: Request) -> list[csd.ChatMessageOut]:
     return await _service(request).history(portfolio_id)
 
 
@@ -38,10 +38,10 @@ async def clear_chat(portfolio_id: int, request: Request) -> None:
 
 
 @router.get("/{portfolio_id}/audit")
-async def audit_log(portfolio_id: int, request: Request) -> list[AuditEntry]:
+async def audit_log(portfolio_id: int, request: Request) -> list[csd.AuditEntry]:
     return await _service(request).audit(portfolio_id)
 
 
 @info_router.get("/info")
-async def copilot_info(request: Request) -> CopilotInfo:
-    return CopilotInfo(model=_service(request).model_name)
+async def copilot_info(request: Request) -> csd.CopilotInfo:
+    return csd.CopilotInfo(model=_service(request).model_name)
