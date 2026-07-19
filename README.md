@@ -29,7 +29,7 @@ just run-frontend     # Next.js on :3000
 Tests: `just test` (integration tests auto-skip without Postgres; they use a
 dedicated `coresat_test` database). Full gate: `just run-ci`. The real-LLM
 comparison and copilot tests are opt-in: `CORESAT_REAL_LLM=1 just test-backend
--k real_llm` (needs Ollama serving `qwen3.5:4b`).
+-k real_llm` (needs Ollama serving `gemma4:e4b`).
 
 ## Data
 
