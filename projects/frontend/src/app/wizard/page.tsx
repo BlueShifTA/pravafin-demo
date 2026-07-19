@@ -453,27 +453,30 @@ export default function WizardPage() {
             </Card>
           )}
 
-          <Box
-            sx={{
-              display: "flex",
-              gap: 2,
-              mt: 3,
-              justifyContent: "space-between",
-              ...(step === 0 ? { maxWidth: 480, mx: "auto", justifyContent: "flex-start" } : {}),
-            }}
-          >
-            <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
-              Back
-            </Button>
-            {step < STEPS.length - 1 ? (
-              <Button variant="contained" disabled={!stepValid} onClick={() => setStep(step + 1)}>
-                Next
+          <Box sx={{ display: "flex", justifyContent: step === 0 ? "center" : "stretch", mt: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                gap: 2,
+                width: "100%",
+                ...(step === 0
+                  ? { maxWidth: 480, justifyContent: "flex-start" }
+                  : { justifyContent: "space-between" }),
+              }}
+            >
+              <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
+                Back
               </Button>
-            ) : (
-              <Button variant="contained" disabled={create.isPending} onClick={submit}>
-                Create portfolio
-              </Button>
-            )}
+              {step < STEPS.length - 1 ? (
+                <Button variant="contained" disabled={!stepValid} onClick={() => setStep(step + 1)}>
+                  Next
+                </Button>
+              ) : (
+                <Button variant="contained" disabled={create.isPending} onClick={submit}>
+                  Create portfolio
+                </Button>
+              )}
+            </Box>
           </Box>
         </>
       )}
