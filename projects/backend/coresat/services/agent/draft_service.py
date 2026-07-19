@@ -140,11 +140,11 @@ class DraftService:
         draft: PortfolioDraft | None = None
         note = ""
         if answer.draft is not None:
-            resolved, resolve_error = await self._resolve_draft(answer.draft)
+            resolved, resolve_note = await self._resolve_draft(answer.draft)
             if resolved is not None:
                 draft = _normalize_draft(resolved)
-            elif resolve_error is not None:
-                note = f" ({resolve_error})"
+            if resolve_note is not None:
+                note = f" ({resolve_note})"
         payload: dict[str, object] = {
             "text": answer.text + note,
             "action": "propose" if draft is not None else "chat",
@@ -158,10 +158,11 @@ class DraftService:
         # The model often names a ticker that is not exactly in the DB — a
         # dropped exchange suffix (CSPX for CSPX.L) or a stock as the core (HD).
         # Resolve the core against funds and each satellite against instruments
-        # (exact, else the same base plus an exchange suffix). A satellite that
-        # still cannot be found is dropped (weight-normalization re-balances); if
-        # the core cannot be resolved to a real fund, don't propose a broken
-        # draft — fall back to chat with the reason.
+        # (exact, else the same base plus an exchange suffix, else company name).
+        # Unresolved satellites are excluded with a note; if that leaves none —
+        # or the core cannot be resolved to a real fund — don't propose a broken
+        # draft (a lone core rescaled to 100% is not what the user asked for),
+        # fall back to chat with the reason.
         async with self._engine.connect() as conn:
             core = (
                 await conn.execute(
@@ -176,20 +177,39 @@ class DraftService:
             if core is None:
                 return None, f"no ETF in the database matches the core '{draft.core_fund_ticker}'"
             satellites: list[DraftPosition] = []
+            dropped: list[str] = []
             for position in draft.satellites:
                 resolved = (
                     await conn.execute(
                         text(
                             "SELECT ticker FROM instruments WHERE type = 'stock' AND "
-                            "(upper(ticker) = upper(:t) OR upper(ticker) LIKE upper(:t) || '.%') "
-                            "ORDER BY (upper(ticker) = upper(:t)) DESC LIMIT 1"
+                            "(upper(ticker) = upper(:t) OR upper(ticker) LIKE upper(:t) || '.%' "
+                            "OR upper(name) = upper(:t) OR upper(name) LIKE upper(:t) || '%') "
+                            "ORDER BY (upper(ticker) = upper(:t)) DESC, "
+                            "(upper(name) = upper(:t)) DESC LIMIT 1"
                         ),
                         {"t": position.ticker},
                     )
                 ).scalar()
                 if resolved is not None:
                     satellites.append(position.model_copy(update={"ticker": resolved}))
-        return draft.model_copy(update={"core_fund_ticker": core, "satellites": satellites}), None
+                else:
+                    dropped.append(position.ticker)
+        if draft.satellites and not satellites:
+            return None, (
+                "could not match any requested holdings to tradable stocks: "
+                + ", ".join(dropped)
+                + " — please use exact tickers"
+            )
+        note = (
+            "excluded holdings not found as tradable stocks: " + ", ".join(dropped)
+            if dropped
+            else None
+        )
+        return (
+            draft.model_copy(update={"core_fund_ticker": core, "satellites": satellites}),
+            note,
+        )
 
     async def _create(self, draft: PortfolioDraft) -> AsyncIterator[str]:
         total = draft.core_weight + sum(position.weight for position in draft.satellites)

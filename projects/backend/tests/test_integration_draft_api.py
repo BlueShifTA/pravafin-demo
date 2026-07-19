@@ -206,6 +206,81 @@ def test_propose_with_unknown_core_falls_back_to_chat() -> None:
         client.__exit__(None, None, None)
 
 
+def test_propose_with_all_satellites_unresolvable_falls_back_to_chat() -> None:
+    # gemma sometimes fills satellites with company names ("NVIDIA CORP") or a
+    # second ETF — none resolve to a tradable stock. They must NOT be silently
+    # dropped into a misleading 100%-core proposal; fall back to chat + say why.
+    draft = PortfolioDraft(
+        name="Names Not Tickers",
+        initial_capital=10000,
+        monthly_contribution=0,
+        core_fund_ticker="IWDA.AS",
+        core_weight=0.35,
+        satellites=[
+            {"ticker": "ZZZZ", "weight": 0.35},
+            {"ticker": "NONEXISTENT HOLDINGS CO", "weight": 0.30},
+        ],
+    )
+    answer = Answer(text="Here is a portfolio.", action="propose", draft=draft)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
+        assert response.status_code == 200, response.text
+        emitted = next(p for n, p in _events(response.text) if n == "answer")
+        assert emitted["action"] == "chat"
+        assert emitted["draft"] is None
+        assert "ZZZZ" in str(emitted["text"])
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_propose_drops_one_unresolvable_satellite_with_a_note() -> None:
+    draft = PortfolioDraft(
+        name="One Bad Sat",
+        initial_capital=10000,
+        monthly_contribution=0,
+        core_fund_ticker="IWDA.AS",
+        core_weight=0.6,
+        satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "ZZZZ", "weight": 0.2}],
+    )
+    answer = Answer(text="Here.", action="propose", draft=draft)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
+        assert response.status_code == 200, response.text
+        emitted = next(p for n, p in _events(response.text) if n == "answer")
+        assert emitted["action"] == "propose"
+        assert isinstance(emitted["draft"], dict)
+        assert {s["ticker"] for s in emitted["draft"]["satellites"]} == {"NVDA"}
+        assert "ZZZZ" in str(emitted["text"])
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_propose_resolves_a_satellite_by_company_name() -> None:
+    # gemma sometimes emits a company name instead of a ticker; resolve it
+    # against instruments.name so the holding is not dropped.
+    draft = PortfolioDraft(
+        name="By Name",
+        initial_capital=10000,
+        monthly_contribution=0,
+        core_fund_ticker="IWDA.AS",
+        core_weight=0.6,
+        satellites=[{"ticker": "NVIDIA", "weight": 0.2}, {"ticker": "UnitedHealth", "weight": 0.2}],
+    )
+    answer = Answer(text="Here.", action="propose", draft=draft)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post("/api/portfolio-draft/chat", json={"message": "recommend one"})
+        assert response.status_code == 200, response.text
+        emitted = next(p for n, p in _events(response.text) if n == "answer")
+        assert emitted["action"] == "propose"
+        assert isinstance(emitted["draft"], dict)
+        assert {s["ticker"] for s in emitted["draft"]["satellites"]} == {"NVDA", "UNH"}
+    finally:
+        client.__exit__(None, None, None)
+
+
 def test_confirm_creates_portfolio_in_database() -> None:
     answer = Answer(text="Building it now.", action="create")
     client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
