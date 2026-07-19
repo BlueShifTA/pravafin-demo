@@ -33,6 +33,19 @@ async def test_inline_evidence_markers_stripped_from_answer_text() -> None:
     assert answer.citations == ["rag_search#1"]
 
 
+async def test_parenthesised_markers_also_stripped() -> None:
+    # The model wraps the id in parentheses as often as brackets — e.g. it ends
+    # a sentence with "(rag_search#1)". Both delimiters must be stripped.
+    answer_json = (
+        '{"text": "The key benefits are growth and diversification (rag_search#1).", '
+        '"citations": ["rag_search#1"], "gaps": [], "needs_replan": false, '
+        '"action": "chat", "draft": null}'
+    )
+    answer, _ = await _llm(answer_json).synthesise("what are the benefits?", "", [])
+    assert answer.text == "The key benefits are growth and diversification."
+    assert answer.citations == ["rag_search#1"]
+
+
 async def test_run_sql_markers_also_stripped() -> None:
     answer_json = (
         '{"text": "You invested 5000 [run_sql#1] so far.", '

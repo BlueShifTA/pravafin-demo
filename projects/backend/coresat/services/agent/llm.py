@@ -267,11 +267,13 @@ class AgentLLM(Protocol):
     ) -> tuple[csd.Answer, Usage]: ...
 
 
-# The small model copies the evidence-id brackets it sees in the prompt (the
+# The small model copies the evidence-id markers it sees in the prompt (the
 # [source#step_id] render below) into the answer prose, even though citations
-# are surfaced separately as chips. Strip the inline markers — with any leading
-# space — from the answer text; the structured `citations` field is untouched.
-_EVIDENCE_MARKER_RE = re.compile(r"\s*\[[a-z_]+#\d+\]")
+# are surfaced separately as chips. It wraps them in brackets or parentheses —
+# "[rag_search#1]" or "(rag_search#1)" — so strip either delimiter, with any
+# leading space, from the answer text; the structured `citations` field is
+# untouched.
+_EVIDENCE_MARKER_RE = re.compile(r"\s*[\[(][a-z_]+#\d+[\])]")
 
 
 def _strip_evidence_markers(text: str) -> str:
