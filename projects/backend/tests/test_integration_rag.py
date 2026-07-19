@@ -108,6 +108,33 @@ async def test_empty_store_returns_empty(retriever: csa.RagRetriever) -> None:
     assert await retriever.retrieve("anything", k=5) == []
 
 
+async def test_rare_term_question_surfaces_the_specific_doc(retriever: csa.RagRetriever) -> None:
+    # 22 generic "risk" chunks rank closest in vector space, filling the vec
+    # pool (LIMIT 20) and pushing the factsheet out of it. The factsheet is the
+    # only doc carrying the rare token 'cspx'. A natural multi-term question
+    # ANDs to zero full-text hits (no single chunk contains every term), so an
+    # AND full-text query never pools the factsheet — only OR-ing the terms
+    # rescues it, so the rare discriminating token 'cspx' can do its job.
+    admin = await _connect_or_skip()
+    for index in range(22):
+        await _insert_chunk(
+            admin, f"tenk_{index}.pdf", 0, "risk factors and business risks", QVEC, 1
+        )
+    await _insert_chunk(
+        admin,
+        "cspx_factsheet.pdf",
+        0,
+        "CSPX key risks and benefits capital at risk exposure to large US companies",
+        ORTHO,
+        1,
+    )
+    await admin.close()
+
+    results = await retriever.retrieve("risks and benefits in the CSPX factsheet", k=30)
+
+    assert "cspx_factsheet.pdf" in {r.source_doc for r in results}
+
+
 async def test_chunk_matching_both_signals_appears_once(retriever: csa.RagRetriever) -> None:
     # A chunk that both scores in the vector pool AND matches full-text must
     # come back once — the pool UNION dedups ids (UNION ALL would double it).

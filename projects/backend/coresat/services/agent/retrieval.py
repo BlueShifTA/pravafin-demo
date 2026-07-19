@@ -73,13 +73,28 @@ class RagRetriever:
                 (
                     await conn.execute(
                         text(
-                            "WITH vec AS ("
+                            # plainto_tsquery ANDs every lexeme, so a natural
+                            # multi-term question ("risks and benefits in the CSPX
+                            # factsheet") matches only a chunk that contains ALL
+                            # terms — usually none — and the full-text arm
+                            # contributes nothing, leaving a rare discriminating
+                            # token like 'cspx' unable to surface its one doc.
+                            # OR the lexemes (reusing plainto's stemming and
+                            # stop-word removal, then flipping ' & ' to ' | ') so
+                            # any term can pool a chunk; ts_rank still orders by
+                            # how many terms and how well each matches.
+                            "WITH tsq AS ("
+                            "  SELECT replace("
+                            "    plainto_tsquery('english', :q)::text, ' & ', ' | '"
+                            "  )::tsquery AS q"
+                            "), vec AS ("
                             "  SELECT id, embedding <=> CAST(:qvec AS vector) AS dist"
                             "  FROM doc_chunks WHERE embedding IS NOT NULL"
                             "  ORDER BY dist LIMIT :probe"
                             "), fts AS ("
-                            "  SELECT id, ts_rank(tsv, plainto_tsquery('english', :q)) AS rank"
-                            "  FROM doc_chunks WHERE tsv @@ plainto_tsquery('english', :q)"
+                            "  SELECT d.id, ts_rank(d.tsv, tsq.q) AS rank"
+                            "  FROM doc_chunks d, tsq"
+                            "  WHERE tsq.q <> '' AND d.tsv @@ tsq.q"
                             "  ORDER BY rank DESC LIMIT :probe"
                             "), pool AS (SELECT id FROM vec UNION SELECT id FROM fts)"
                             " SELECT d.source_doc, d.page, d.text"
