@@ -84,11 +84,18 @@ class IngestionPipeline:
                     rows_ok=0,
                     rows_quarantined=0,
                 )
+            # The run row commits before parse/load, so a crash mid-load leaves a
+            # non-succeeded row with this checksum. On resume the succeeded-skip
+            # above won't match it, so reuse (reset) that row instead of
+            # re-inserting — a bare INSERT would trip the checksum UNIQUE key.
             run_id = (
                 await conn.execute(
                     text(
                         "INSERT INTO ingest_runs (source, adapter_version, checksum) "
-                        "VALUES (:source, :version, :checksum) RETURNING id"
+                        "VALUES (:source, :version, :checksum) "
+                        "ON CONFLICT (checksum) DO UPDATE SET "
+                        "status = 'running', started_at = now(), finished_at = NULL "
+                        "RETURNING id"
                     ),
                     {"source": adapter_name, "version": version, "checksum": checksum},
                 )

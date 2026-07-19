@@ -113,6 +113,27 @@ async def test_reingest_same_pdf_skips_no_duplicates(pipeline: IngestionPipeline
     assert count == 1
 
 
+async def test_reingest_after_interrupted_run_resumes(pipeline: IngestionPipeline) -> None:
+    # A crash mid-load commits the run row but leaves it non-succeeded. Re-running
+    # the same payload must reset+finish that row, not trip the checksum UNIQUE key.
+    pdf = make_text_pdf(["interrupted run resume test"])
+    first = await pipeline.run("pdf", pdf, "resume.pdf")
+    assert first.status == "succeeded"
+    async with pipeline.engine.begin() as conn:
+        await conn.execute(text("UPDATE ingest_runs SET status = 'running', finished_at = NULL"))
+
+    second = await pipeline.run("pdf", pdf, "resume.pdf")
+
+    assert second.status == "succeeded"  # resumed via ON CONFLICT, no unique violation
+    async with pipeline.engine.connect() as conn:
+        count = (
+            await conn.execute(
+                text("SELECT count(*) FROM doc_chunks WHERE source_doc = 'resume.pdf'")
+            )
+        ).scalar_one()
+    assert count == 1
+
+
 async def test_pdf_without_source_ref_is_rejected(pipeline: IngestionPipeline) -> None:
     with pytest.raises(ValueError, match="source_ref"):
         await pipeline.run("pdf", make_text_pdf(["x"]), None)

@@ -112,7 +112,13 @@ async def seed(data_dir: pathlib.Path) -> None:
                     report.status,
                 )
         for path in sorted((data_dir / "docs").glob("*.pdf")):
-            report = await pipeline.run("pdf", path.read_bytes(), path.name)
+            try:
+                report = await pipeline.run("pdf", path.read_bytes(), path.name)
+            except Exception as error:  # noqa: BLE001
+                # Error boundary: one unreadable/quirky PDF (encryption, corruption,
+                # embed hiccup) must not abort the whole batch — log it and move on.
+                log.warning("%s: FAILED, skipped — %s", path.name, error)
+                continue
             log.info("%s: %s chunks=%d", path.name, report.status, report.rows_ok)
     finally:
         await engine.dispose()

@@ -275,7 +275,9 @@ class PdfAdapter:
         try:
             reader = PdfReader(io.BytesIO(payload))
             pages = [
-                (number, page.extract_text() or "")
+                # pypdf can emit NUL bytes; Postgres text columns reject 0x00
+                # (invalid in every encoding), so strip them before chunking.
+                (number, (page.extract_text() or "").replace("\x00", ""))
                 for number, page in enumerate(reader.pages, start=1)
             ]
         except PyPdfError as error:

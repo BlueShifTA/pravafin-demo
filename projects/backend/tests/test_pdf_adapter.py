@@ -33,6 +33,17 @@ def test_corrupt_payload_raises_clear_value_error() -> None:
         PdfAdapter().parse(b"this is definitely not a pdf", "bad.pdf")
 
 
+def test_nul_bytes_are_stripped_from_extracted_text() -> None:
+    # Real PDFs (e.g. 10-K filings) surface NUL (0x00) in extracted text;
+    # Postgres text columns reject 0x00, so the adapter must strip it before
+    # building chunks — otherwise ingestion aborts on the offending document.
+    valid, rejects = PdfAdapter().parse(make_text_pdf(["clean\x00text here"]), "nul.pdf")
+    assert rejects == []
+    assert len(valid) == 1
+    assert "\x00" not in valid[0].text
+    assert valid[0].text == "cleantext here"
+
+
 def test_chunk_text_starts_new_chunk_at_the_boundary() -> None:
     # 400 + 1 space + 400 = 801 > 800 → the second word opens a new chunk.
     chunks = list(_chunk_text(" ".join(["a" * 400, "b" * 400])))
