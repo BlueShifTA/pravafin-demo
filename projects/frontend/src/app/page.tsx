@@ -150,9 +150,10 @@ function futureValue(capital: number, annual: number, rate: number, years: numbe
 }
 
 function DashboardBody({ summary }: { summary: PortfolioSummary }) {
-  // Editable what-if inputs: default to the portfolio's own values, then drive
-  // the projection client-side (the backend rate stays fixed).
-  const [capital, setCapital] = useState<number>(summary.current_value);
+  // Projection starts from the portfolio's real current value; monthly is the
+  // editable what-if input and drives the projection client-side (the backend
+  // rate stays fixed).
+  const capital = summary.current_value;
   const [monthly, setMonthly] = useState<number>(summary.monthly_contribution);
 
   const rate = summary.projections[0]?.annual_rate ?? 0;
@@ -171,9 +172,6 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
   return (
     <Fade in timeout={900}>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <EditableStatCard label="Current value" value={capital} onChange={setCapital} />
-        </Grid>
         <Grid size={{ xs: 6, sm: 4, md: 2 }}>
           <StatCard label="Invested" value={`$${currency.format(summary.invested_total)}`} />
         </Grid>
@@ -240,7 +238,7 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
           <Card variant="outlined" sx={{ height: "100%" }}>
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Projection (weighted CAGR ±1%) — edit current value or monthly to explore
+                Projection (weighted CAGR ±1%) — edit monthly to explore
               </Typography>
               <LineChart
                 height={300}
