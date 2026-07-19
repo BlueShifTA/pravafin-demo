@@ -19,7 +19,7 @@ import type { PortfolioSummary } from "@/lib/generated/models/portfolioSummary";
 
 import { PageShell } from "@/components/layout/PageShell";
 import { Spinner } from "@/components/ui/feedback/Spinner";
-import { formatPercent } from "@/lib/format";
+import { formatPercent, moneyAxis } from "@/lib/format";
 import { usePortfolioSummaryApiPortfoliosPortfolioIdSummaryGet } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
@@ -143,14 +143,6 @@ function EditableStatCard({
   );
 }
 
-// axis unit so the projection y-axis title carries the K/M/B suffix and the
-// ticks stay plain numbers (e.g. label "value ($M)", ticks 0.2, 0.4, …).
-const AXIS_UNITS: [number, string][] = [
-  [1_000_000_000, "B"],
-  [1_000_000, "M"],
-  [1_000, "K"],
-];
-
 function futureValue(capital: number, annual: number, rate: number, years: number): number {
   const growth = (1 + rate) ** years;
   if (rate === 0) return capital + annual * years;
@@ -172,10 +164,6 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
   const expected = [capital, ...years.map((y) => project(rate, y))];
   const low = [capital, ...years.map((y) => project(rate - 0.01, y))];
   const high = [capital, ...years.map((y) => project(rate + 0.01, y))];
-  const [unit, suffix] = AXIS_UNITS.find(([threshold]) => Math.max(...high) >= threshold) ?? [
-    1,
-    "",
-  ];
 
   const gain = capital - summary.invested_total;
   const gainPct = summary.invested_total ? gain / summary.invested_total : 0;
@@ -258,13 +246,7 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
                 height={300}
                 skipAnimation
                 xAxis={[{ data: horizonYears, label: "years" }]}
-                yAxis={[
-                  {
-                    label: `value ($${suffix})`,
-                    valueFormatter: (value: number | null) =>
-                      value == null ? "" : (value / unit).toFixed(1),
-                  },
-                ]}
+                yAxis={[moneyAxis(Math.max(...high))]}
                 series={[
                   { data: expected, label: "expected" },
                   { data: low, label: "low (−1%)" },

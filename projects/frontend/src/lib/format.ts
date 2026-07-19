@@ -57,3 +57,23 @@ export function formatPercent(fraction: number | null | undefined, decimals: num
   if (fraction == null) return "n/a";
   return `${(fraction * 100).toFixed(decimals)}%`;
 }
+
+const AXIS_UNITS: [number, string][] = [
+  [1_000_000_000, "B"],
+  [1_000_000, "M"],
+  [1_000, "K"],
+];
+
+// Chart y-axis config for money: put the K/M/B unit in the axis title and keep
+// the ticks as small plain numbers (title "value ($M)", ticks 0.2, 0.4, …),
+// instead of repeating "$0.2M" on every tick. Pick the unit from the largest value.
+export function moneyAxis(maxValue: number): {
+  label: string;
+  valueFormatter: (value: number | null) => string;
+} {
+  const [unit, suffix] = AXIS_UNITS.find(([threshold]) => maxValue >= threshold) ?? [1, ""];
+  return {
+    label: `value ($${suffix})`,
+    valueFormatter: (value: number | null) => (value == null ? "" : (value / unit).toFixed(1)),
+  };
+}

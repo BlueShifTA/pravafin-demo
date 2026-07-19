@@ -9,13 +9,18 @@ import {
   MenuItem,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   Typography,
 } from "@mui/material";
 import { LineChart } from "@mui/x-charts";
 import { useState } from "react";
 
 import type { FundRow } from "@/lib/generated/models";
-import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format";
+import { formatMoney, formatPercent, moneyAxis } from "@/lib/format";
 
 const CAPITAL = 10_000;
 const YEARS = 20;
@@ -31,15 +36,11 @@ function grow(rate: number, year: number): number {
   return CAPITAL * (1 + rate) ** year;
 }
 
-function FundStat({ fund }: { fund: FundRow }) {
-  const grossFinal = grow(fund.cagr_10y ?? 0, YEARS);
-  const netFinal = grow(netRate(fund), YEARS);
-  return (
-    <Typography variant="body2" color="text.secondary">
-      <b>{fund.ticker}</b> — growth {formatPercent(fund.cagr_10y)}/yr, TER {fund.ter ?? "n/a"}% →{" "}
-      {formatMoney(netFinal)} net after {YEARS}y (fees cost {formatMoney(grossFinal - netFinal)})
-    </Typography>
-  );
+function feeStats(fund: FundRow) {
+  const gross = grow(fund.cagr_10y ?? 0, YEARS);
+  const net = grow(netRate(fund), YEARS);
+  const fees = gross - net;
+  return { net, fees, feesPct: gross > 0 ? fees / gross : 0 };
 }
 
 // Compare two funds by growth rate (CAGR) and TER: plot each fund's net-of-fees
@@ -110,7 +111,9 @@ export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
             <LineChart
               height={300}
               xAxis={[{ data: HORIZON, label: "years" }]}
-              yAxis={[{ valueFormatter: (value: number | null) => formatMoneyCompact(value) }]}
+              yAxis={[
+                moneyAxis(Math.max(grow(netRate(fundA), YEARS), grow(netRate(fundB), YEARS))),
+              ]}
               series={[
                 {
                   data: HORIZON.map((year) => grow(netRate(fundA), year)),
@@ -124,10 +127,33 @@ export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
                 },
               ]}
             />
-            <Stack spacing={0.5} sx={{ mt: 1 }}>
-              <FundStat fund={fundA} />
-              <FundStat fund={fundB} />
-            </Stack>
+            <Table size="small" sx={{ mt: 1 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Fund</TableCell>
+                  <TableCell align="right">Growth / yr</TableCell>
+                  <TableCell align="right">TER</TableCell>
+                  <TableCell align="right">Net after {YEARS}y</TableCell>
+                  <TableCell align="right">Fees cost</TableCell>
+                  <TableCell align="right">Fees %</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {[fundA, fundB].map((fund) => {
+                  const stats = feeStats(fund);
+                  return (
+                    <TableRow key={fund.ticker}>
+                      <TableCell sx={{ fontWeight: 600 }}>{fund.ticker}</TableCell>
+                      <TableCell align="right">{formatPercent(fund.cagr_10y)}</TableCell>
+                      <TableCell align="right">{fund.ter ?? "n/a"}%</TableCell>
+                      <TableCell align="right">{formatMoney(stats.net)}</TableCell>
+                      <TableCell align="right">{formatMoney(stats.fees)}</TableCell>
+                      <TableCell align="right">{formatPercent(stats.feesPct)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </>
         )}
       </CardContent>
