@@ -165,6 +165,9 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
           maxWidth: 720,
         }}
       >
+        <Typography variant="overline" color="text.secondary">
+          Conversation
+        </Typography>
         <Box
           sx={{
             flexGrow: 1,
