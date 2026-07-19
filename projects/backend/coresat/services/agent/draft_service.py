@@ -68,7 +68,7 @@ def _draft_to_spec(draft: csd.PortfolioDraft) -> csd.PortfolioCreate:
         name=draft.name,
         initial_capital=draft.initial_capital,
         monthly_contribution=draft.monthly_contribution,
-        core=csd.CorePick(fund_ticker=draft.core_fund_ticker, weight=draft.core_weight),
+        core=[csd.CorePick(fund_ticker=draft.core_fund_ticker, weight=draft.core_weight)],
         satellites=[
             csd.SatellitePick(ticker=position.ticker, weight=position.weight, acquired_at=None)
             for position in draft.satellites

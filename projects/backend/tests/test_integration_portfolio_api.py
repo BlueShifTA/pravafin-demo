@@ -55,14 +55,25 @@ async def _prepare() -> None:
         "INSERT INTO funds (ticker, name, ter, cagr_10y) "
         "VALUES ('TSTF', 'Test World Fund', 0.5, 0.10)"
     )
+    etf2_instrument = await conn.fetchval(
+        "INSERT INTO instruments (ticker, name, type) "
+        "VALUES ('TSTG', 'Test Fund Two Tracker', 'etf') RETURNING id"
+    )
+    await conn.execute(
+        "INSERT INTO funds (ticker, name, ter, cagr_10y) "
+        "VALUES ('TSTG', 'Test Bond Fund', 0.2, 0.06)"
+    )
     await conn.execute(
         "INSERT INTO prices_daily (instrument_id, date, open, high, low, close, volume) VALUES "
         "($1, '2024-01-02', 99, 101, 98, 100, 1000), "
         "($1, '2026-01-02', 109, 111, 108, 110, 1000), "
         "($2, '2024-01-02', 50, 50, 50, 50, 1000), "
-        "($2, '2026-01-02', 55, 55, 55, 55, 1000)",
+        "($2, '2026-01-02', 55, 55, 55, 55, 1000), "
+        "($3, '2024-01-02', 20, 20, 20, 20, 1000), "
+        "($3, '2026-01-02', 22, 22, 22, 22, 1000)",
         stock,
         etf_instrument,
+        etf2_instrument,
     )
     await conn.execute(
         "INSERT INTO fundamentals (instrument_id, market_cap, ebit, nwc, ppe_net, cash, "
@@ -86,7 +97,7 @@ def _create_portfolio(client: TestClient) -> int:
             "name": "Demo",
             "initial_capital": 10_000,
             "monthly_contribution": 100,
-            "core": {"fund_ticker": "TSTF", "weight": 0.8},
+            "core": [{"fund_ticker": "TSTF", "weight": 0.8}],
             "satellites": [{"ticker": "TSTP", "weight": 0.2, "acquired_at": "2024-01-02"}],
         },
     )
@@ -118,6 +129,29 @@ def test_summary_values_positions_from_prices(client: TestClient) -> None:
     assert ten["low"] < ten["expected"] < ten["high"]
 
 
+def test_wizard_creates_multiple_core_etfs(client: TestClient) -> None:
+    response = client.post(
+        "/api/portfolios",
+        json={
+            "name": "Two-core",
+            "initial_capital": 10_000,
+            "monthly_contribution": 0,
+            "core": [
+                {"fund_ticker": "TSTF", "weight": 0.5},
+                {"fund_ticker": "TSTG", "weight": 0.3},
+            ],
+            "satellites": [{"ticker": "TSTP", "weight": 0.2, "acquired_at": "2024-01-02"}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    portfolio_id = response.json()["id"]
+    summary = client.get(f"/api/portfolios/{portfolio_id}/summary").json()
+    core_labels = {s["label"] for s in summary["allocation"] if s["kind"] == "core"}
+    assert core_labels == {"TSTF", "TSTG"}
+    core_drift = next(d for d in summary["drift"] if d["kind"] == "core")
+    assert core_drift["target_weight"] == pytest.approx(0.8)
+
+
 def test_unknown_ticker_in_wizard_is_422(client: TestClient) -> None:
     response = client.post(
         "/api/portfolios",
@@ -125,7 +159,7 @@ def test_unknown_ticker_in_wizard_is_422(client: TestClient) -> None:
             "name": "Bad",
             "initial_capital": 1000,
             "monthly_contribution": 0,
-            "core": {"fund_ticker": "NOFUND", "weight": 0.8},
+            "core": [{"fund_ticker": "NOFUND", "weight": 0.8}],
             "satellites": [],
         },
     )

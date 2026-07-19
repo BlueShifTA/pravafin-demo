@@ -6,7 +6,9 @@ import {
   Button,
   Card,
   CardContent,
+  Divider,
   Slider,
+  Stack,
   Step,
   StepLabel,
   Stepper,
@@ -14,12 +16,15 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
+import { DataGrid } from "@mui/x-data-grid";
+import type { GridRowSelectionModel } from "@mui/x-data-grid";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
 import { PortfolioAssistant } from "@/components/wizard/PortfolioAssistant";
+import { screenerColumns } from "@/components/market/screenerColumns";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
 import {
@@ -32,6 +37,10 @@ import { usePortfolio } from "@/lib/portfolio-context";
 
 const STEPS = ["Capital", "Core ETF", "Satellites", "Review"] as const;
 
+function mean(values: number[]): number {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
 export default function WizardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -42,16 +51,39 @@ export default function WizardPage() {
   const [capital, setCapital] = useState(10_000);
   const [monthly, setMonthly] = useState(200);
   const [coreWeight, setCoreWeight] = useState(0.8);
-  const [coreFund, setCoreFund] = useState<string | null>(null);
+  const [coreFunds, setCoreFunds] = useState<string[]>([]);
   const [satellites, setSatellites] = useState<string[]>([]);
+  const [coreSearch, setCoreSearch] = useState("");
+  const [maxTer, setMaxTer] = useState("");
+  const [minCagr, setMinCagr] = useState("");
 
   const fundsQuery = useFundsApiMarketFundsGet();
   const funds = fundsQuery.data?.status === 200 ? fundsQuery.data.data : [];
-  const screenerQuery = useScreenerApiMarketScreenerGet({ limit: 30 });
+  const screenerQuery = useScreenerApiMarketScreenerGet({ limit: 200 });
   const screener = screenerQuery.data?.status === 200 ? screenerQuery.data.data : [];
   const create = useCreatePortfolioApiPortfoliosPost();
 
+  // Core weight splits equally across the selected core ETFs; the remainder
+  // splits equally across the selected satellites.
+  const corePerWeight = coreFunds.length ? coreWeight / coreFunds.length : 0;
   const satelliteWeight = satellites.length ? (1 - coreWeight) / satellites.length : 0;
+
+  const coreSelected = funds.filter((fund) => coreFunds.includes(fund.ticker));
+  const satelliteSelected = screener.filter((row) => satellites.includes(row.ticker));
+  const coreTer = mean(coreSelected.map((fund) => fund.ter ?? 0));
+  const coreCagr = mean(coreSelected.map((fund) => fund.cagr_10y ?? 0));
+  const satelliteCagr = mean(satelliteSelected.map((row) => row.cagr_10y ?? 0));
+
+  const coreFiltered = funds.filter((fund) => {
+    const query = coreSearch.trim().toLowerCase();
+    const matchesText =
+      query === "" ||
+      fund.ticker.toLowerCase().includes(query) ||
+      (fund.name ?? "").toLowerCase().includes(query);
+    const matchesTer = maxTer === "" || (fund.ter ?? Infinity) <= Number(maxTer);
+    const matchesCagr = minCagr === "" || (fund.cagr_10y ?? -Infinity) >= Number(minCagr) / 100;
+    return matchesText && matchesTer && matchesCagr;
+  });
 
   // Both creation paths (guided wizard, AI assistant) land here: the header
   // selector's list query is already mounted, so without invalidation it keeps
@@ -71,7 +103,7 @@ export default function WizardPage() {
           name,
           initial_capital: capital,
           monthly_contribution: monthly,
-          core: { fund_ticker: coreFund ?? "", weight: coreWeight },
+          core: coreFunds.map((ticker) => ({ fund_ticker: ticker, weight: corePerWeight })),
           satellites: satellites.map((ticker) => ({
             ticker,
             weight: satelliteWeight,
@@ -88,9 +120,26 @@ export default function WizardPage() {
     );
   };
 
+  const toggleCoreFund = (ticker: string) => {
+    setCoreFunds((current) =>
+      current.includes(ticker) ? current.filter((value) => value !== ticker) : [...current, ticker]
+    );
+  };
+
+  const onSatelliteSelection = (model: GridRowSelectionModel) => {
+    // DataGrid represents "select all" as an exclude-model (ids = the unchecked
+    // rows), so resolve it against the visible rows instead of trusting ids alone.
+    const ids = new Set([...(model.ids ?? [])].map(String));
+    const selected =
+      model.type === "exclude"
+        ? screener.map((row) => row.ticker).filter((ticker) => !ids.has(ticker))
+        : [...ids];
+    setSatellites(selected);
+  };
+
   const stepValid =
     (step !== 0 || (name.length > 0 && capital > 0)) &&
-    (step !== 1 || coreFund !== null) &&
+    (step !== 1 || coreFunds.length > 0) &&
     (step !== 2 || satellites.length > 0);
 
   return (
@@ -124,68 +173,105 @@ export default function WizardPage() {
           </Stepper>
 
           {step === 0 && (
-            <Card variant="outlined">
-              <CardContent sx={{ display: "grid", gap: 3, maxWidth: 420 }}>
-                <AppTextField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-                <AppTextField
-                  label="Initial capital (USD)"
-                  type="number"
-                  value={capital}
-                  onChange={(e) => setCapital(Number(e.target.value))}
-                />
-                <AppTextField
-                  label="Monthly contribution (USD)"
-                  type="number"
-                  value={monthly}
-                  onChange={(e) => setMonthly(Number(e.target.value))}
-                />
-                <Box>
-                  <Typography gutterBottom>
-                    Core weight: {formatPercent(coreWeight, 0)} (satellites{" "}
-                    {formatPercent(1 - coreWeight, 0)})
-                  </Typography>
-                  <Slider
-                    value={coreWeight}
-                    min={0.5}
-                    max={0.95}
-                    step={0.05}
-                    onChange={(_, value) => setCoreWeight(value as number)}
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <Card variant="outlined" sx={{ width: "100%", maxWidth: 480 }}>
+                <CardContent sx={{ display: "grid", gap: 3 }}>
+                  <AppTextField
+                    label="Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                   />
-                </Box>
-              </CardContent>
-            </Card>
+                  <AppTextField
+                    label="Initial capital (USD)"
+                    type="number"
+                    value={capital}
+                    onChange={(e) => setCapital(Number(e.target.value))}
+                  />
+                  <AppTextField
+                    label="Monthly contribution (USD)"
+                    type="number"
+                    value={monthly}
+                    onChange={(e) => setMonthly(Number(e.target.value))}
+                  />
+                  <Box>
+                    <Typography gutterBottom>
+                      Core weight: {formatPercent(coreWeight, 0)} (satellites{" "}
+                      {formatPercent(1 - coreWeight, 0)})
+                    </Typography>
+                    <Slider
+                      value={coreWeight}
+                      min={0.5}
+                      max={0.95}
+                      step={0.05}
+                      onChange={(_, value) => setCoreWeight(value as number)}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
           )}
 
           {step === 1 && (
-            <Box
-              sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              }}
-            >
-              {funds.map((fund) => (
-                <Card
-                  key={fund.ticker}
-                  variant="outlined"
-                  sx={{
-                    cursor: "pointer",
-                    borderColor: coreFund === fund.ticker ? "primary.main" : undefined,
-                    borderWidth: coreFund === fund.ticker ? 2 : 1,
-                  }}
-                  onClick={() => setCoreFund(fund.ticker)}
-                >
-                  <CardContent>
-                    <Typography sx={{ fontWeight: 600 }}>{fund.ticker}</Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap>
-                      {fund.name}
-                    </Typography>
-                    <Typography variant="body2">
-                      TER {fund.ter ?? "n/a"}% · 10y CAGR {formatPercent(fund.cagr_10y)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              ))}
+            <Box sx={{ display: "grid", gap: 2 }}>
+              <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap", rowGap: 2 }}>
+                <AppTextField
+                  label="Search ETFs"
+                  value={coreSearch}
+                  onChange={(e) => setCoreSearch(e.target.value)}
+                  sx={{ flex: 1, minWidth: 220 }}
+                />
+                <AppTextField
+                  label="Max TER (%)"
+                  type="number"
+                  value={maxTer}
+                  onChange={(e) => setMaxTer(e.target.value)}
+                  sx={{ width: 150 }}
+                />
+                <AppTextField
+                  label="Min 10y CAGR (%)"
+                  type="number"
+                  value={minCagr}
+                  onChange={(e) => setMinCagr(e.target.value)}
+                  sx={{ width: 170 }}
+                />
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                Select one or more core ETFs — {formatPercent(coreWeight, 0)} splits equally across
+                them ({coreFunds.length} selected).
+              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 2,
+                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                }}
+              >
+                {coreFiltered.map((fund) => {
+                  const selected = coreFunds.includes(fund.ticker);
+                  return (
+                    <Card
+                      key={fund.ticker}
+                      variant="outlined"
+                      sx={{
+                        cursor: "pointer",
+                        borderColor: selected ? "primary.main" : undefined,
+                        borderWidth: selected ? 2 : 1,
+                      }}
+                      onClick={() => toggleCoreFund(fund.ticker)}
+                    >
+                      <CardContent>
+                        <Typography sx={{ fontWeight: 600 }}>{fund.ticker}</Typography>
+                        <Typography variant="body2" color="text.secondary" noWrap>
+                          {fund.name}
+                        </Typography>
+                        <Typography variant="body2">
+                          TER {fund.ter ?? "n/a"}% · 10y CAGR {formatPercent(fund.cagr_10y)}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Box>
             </Box>
           )}
 
@@ -193,48 +279,53 @@ export default function WizardPage() {
             <Card variant="outlined">
               <CardContent>
                 <Typography sx={{ mb: 2 }} color="text.secondary">
-                  Pick satellite stocks (magic-formula order — computed on the fly).
+                  Pick satellite stocks — same magic-formula screener as the Satellite tab.
                 </Typography>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                  {screener.map((row) => {
-                    const selected = satellites.includes(row.ticker);
-                    return (
-                      <Button
-                        key={row.ticker}
-                        size="small"
-                        variant={selected ? "contained" : "outlined"}
-                        onClick={() =>
-                          setSatellites(
-                            selected
-                              ? satellites.filter((ticker) => ticker !== row.ticker)
-                              : [...satellites, row.ticker]
-                          )
-                        }
-                      >
-                        #{row.magic_rank} {row.ticker}
-                      </Button>
-                    );
-                  })}
-                </Box>
+                <DataGrid
+                  rows={screener}
+                  columns={screenerColumns}
+                  getRowId={(row) => row.ticker}
+                  loading={screenerQuery.isLoading}
+                  checkboxSelection
+                  rowSelectionModel={{ type: "include", ids: new Set<string>(satellites) }}
+                  onRowSelectionModelChange={onSatelliteSelection}
+                  density="compact"
+                  initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  sx={{ height: 480 }}
+                />
               </CardContent>
             </Card>
           )}
 
           {step === 3 && (
             <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              <CardContent sx={{ display: "grid", gap: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Review
                 </Typography>
                 <Typography>
                   {name}: {formatMoney(capital)} + {formatMoney(monthly)}/month
                 </Typography>
-                <Typography>
-                  Core {formatPercent(coreWeight, 0)} → {coreFund}
+                <Divider sx={{ my: 1 }} />
+                <Typography sx={{ fontWeight: 600 }}>
+                  Core sleeve — {formatPercent(coreWeight, 0)}
                 </Typography>
-                <Typography>
-                  Satellites {formatPercent(1 - coreWeight, 0)} → {satellites.join(", ")} (
-                  {formatPercent(satelliteWeight)} each)
+                <Typography variant="body2" color="text.secondary">
+                  {coreFunds.join(", ") || "none"} ({formatPercent(corePerWeight)} each)
+                </Typography>
+                <Typography variant="body2">
+                  Weighted TER {coreTer.toFixed(2)}% · weighted 10y CAGR {formatPercent(coreCagr)}
+                </Typography>
+                <Divider sx={{ my: 1 }} />
+                <Typography sx={{ fontWeight: 600 }}>
+                  Satellite sleeve — {formatPercent(1 - coreWeight, 0)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {satellites.join(", ") || "none"} ({formatPercent(satelliteWeight)} each)
+                </Typography>
+                <Typography variant="body2">
+                  No TER (individual equities) · weighted 10y CAGR {formatPercent(satelliteCagr)}
                 </Typography>
                 {create.isError && (
                   <Alert severity="error" sx={{ mt: 2 }}>

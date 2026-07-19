@@ -14,7 +14,7 @@ const CONFIRM_MESSAGE = "Yes, build this portfolio.";
 
 function DraftCard({ draft }: { draft: PortfolioDraft }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2, alignSelf: "flex-start", maxWidth: "95%" }}>
+    <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography sx={{ fontWeight: 600, mb: 1 }}>{draft.name}</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
         {formatMoney(draft.initial_capital)} + {formatMoney(draft.monthly_contribution)}/month
@@ -96,92 +96,110 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "60vh", maxWidth: 720 }}>
+    <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
       <Box
         sx={{
-          flexGrow: 1,
-          overflowY: "auto",
           display: "flex",
           flexDirection: "column",
-          gap: 1.5,
-          p: 1,
+          height: "60vh",
+          flexGrow: 1,
+          maxWidth: 720,
         }}
       >
-        {turns.length === 0 && (
-          <Typography color="text.secondary">
-            Describe the portfolio you want — for example: &ldquo;60% core ETF in tech and medical,
-            40% split across five high-upside stocks from different sectors.&rdquo;
-          </Typography>
-        )}
-        {turns.map((turn, index) => (
-          <Box
-            key={index}
-            sx={{
-              alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "90%",
-              px: 1.5,
-              py: 1,
-              borderRadius: 2,
-              bgcolor: turn.role === "user" ? "primary.main" : "action.hover",
-              color: turn.role === "user" ? "primary.contrastText" : "text.primary",
+        <Box
+          sx={{
+            flexGrow: 1,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 1.5,
+            p: 1,
+          }}
+        >
+          {turns.length === 0 && (
+            <Typography color="text.secondary">
+              Describe the portfolio you want — for example: &ldquo;60% core ETF in tech and
+              medical, 40% split across five high-upside stocks from different sectors.&rdquo;
+            </Typography>
+          )}
+          {turns.map((turn, index) => (
+            <Box
+              key={index}
+              sx={{
+                alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "90%",
+                px: 1.5,
+                py: 1,
+                borderRadius: 2,
+                bgcolor: turn.role === "user" ? "primary.main" : "action.hover",
+                color: turn.role === "user" ? "primary.contrastText" : "text.primary",
+              }}
+            >
+              {turn.role === "user" ? (
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                  {turn.content}
+                </Typography>
+              ) : (
+                <Markdown>{turn.content}</Markdown>
+              )}
+            </Box>
+          ))}
+          {sending && (
+            <Box sx={{ alignSelf: "flex-start", minWidth: 200 }}>
+              {stage != null && (
+                <Typography variant="caption" color="text.secondary">
+                  {stage}
+                </Typography>
+              )}
+              <LinearProgress sx={{ mt: 0.5 }} />
+            </Box>
+          )}
+          {error != null && <Alert severity="error">{error}</Alert>}
+        </Box>
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", pt: 1 }}>
+          <AppTextField
+            multiline
+            maxRows={3}
+            placeholder="Describe the portfolio you want…"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void send(input);
+              }
             }}
-          >
-            {turn.role === "user" ? (
-              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                {turn.content}
-              </Typography>
-            ) : (
-              <Markdown>{turn.content}</Markdown>
-            )}
-          </Box>
-        ))}
-        {draft != null && <DraftCard draft={draft} />}
-        {draft != null && !sending && (
+            disabled={sending}
+          />
           <Button
+            aria-label="send message"
             variant="contained"
-            sx={{ alignSelf: "flex-start" }}
+            onClick={() => void send(input)}
+            disabled={sending || input.trim() === ""}
+            sx={{ minWidth: 0, px: 2 }}
+          >
+            <SendIcon />
+          </Button>
+        </Box>
+      </Box>
+
+      {draft != null && (
+        <Box sx={{ width: 340, flexShrink: 0, position: "sticky", top: 16 }}>
+          <Typography variant="overline" color="text.secondary">
+            Proposed portfolio
+          </Typography>
+          <DraftCard draft={draft} />
+          <Button
+            fullWidth
+            variant="contained"
+            sx={{ mt: 1.5 }}
+            disabled={sending}
             onClick={() => void send(CONFIRM_MESSAGE, true)}
           >
             Looks good — build it
           </Button>
-        )}
-        {sending && (
-          <Box sx={{ alignSelf: "flex-start", minWidth: 200 }}>
-            {stage != null && (
-              <Typography variant="caption" color="text.secondary">
-                {stage}
-              </Typography>
-            )}
-            <LinearProgress sx={{ mt: 0.5 }} />
-          </Box>
-        )}
-        {error != null && <Alert severity="error">{error}</Alert>}
-      </Box>
-      <Box sx={{ display: "flex", gap: 1, alignItems: "center", pt: 1 }}>
-        <AppTextField
-          multiline
-          maxRows={3}
-          placeholder="Describe the portfolio you want…"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void send(input);
-            }
-          }}
-          disabled={sending}
-        />
-        <Button
-          aria-label="send message"
-          variant="contained"
-          onClick={() => void send(input)}
-          disabled={sending || input.trim() === ""}
-          sx={{ minWidth: 0, px: 2 }}
-        >
-          <SendIcon />
-        </Button>
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 }

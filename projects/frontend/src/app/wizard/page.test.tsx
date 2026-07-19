@@ -76,7 +76,8 @@ describe("WizardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(await screen.findByText("IWDA"));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    fireEvent.click(await screen.findByText("#1 NVDA"));
+    // satellite step is now the screener DataGrid — select the NVDA row via its checkbox
+    fireEvent.click(await screen.findByRole("checkbox", { name: /select all rows/i }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Create portfolio" }));
 

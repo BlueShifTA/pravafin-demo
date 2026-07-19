@@ -37,20 +37,13 @@ import { CandleChartCard } from "@/components/market/CandleChartCard";
 import { CompareDialog } from "@/components/market/CompareDialog";
 import { FinancialsPanel } from "@/components/market/FinancialsPanel";
 import { StockAnalysisDialog } from "@/components/market/StockAnalysisDialog";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { screenerColumns } from "@/components/market/screenerColumns";
 import {
   useFinancialsApiMarketFinancialsTickerGet,
   useScreenerApiMarketScreenerGet,
 } from "@/lib/generated/endpoints";
 
 const LIMITS = [10, 20, 30, 50, 100, 200] as const;
-
-// rank tiers ported from pravafin's screening grid
-function rankColor(rank: number): "success" | "primary" | "default" {
-  if (rank <= 10) return "success";
-  if (rank <= 20) return "primary";
-  return "default";
-}
 
 export default function SatellitePage() {
   const [limit, setLimit] = useState<number>(200);
@@ -79,37 +72,7 @@ export default function SatellitePage() {
   };
 
   const columns: GridColDef[] = [
-    {
-      field: "magic_rank",
-      headerName: "#",
-      width: 80,
-      renderCell: (params) => (
-        <Chip label={params.value} size="small" color={rankColor(Number(params.value))} />
-      ),
-    },
-    { field: "ticker", headerName: "Ticker", width: 100 },
-    { field: "name", headerName: "Name", flex: 1 },
-    { field: "sector", headerName: "Sector", width: 160 },
-    {
-      field: "earnings_yield",
-      headerName: "Earnings yield",
-      description: "EBIT / enterprise value — how much operating profit per euro paid",
-      width: 130,
-      valueFormatter: (value: number) => formatPercent(value),
-    },
-    {
-      field: "roic",
-      headerName: "ROIC",
-      description: "EBIT / (net working capital + PPE) — how well capital compounds",
-      width: 110,
-      valueFormatter: (value: number) => formatPercent(value, 0),
-    },
-    {
-      field: "pe_trailing",
-      headerName: "P/E",
-      width: 90,
-      valueFormatter: (value: number | null) => formatNumber(value),
-    },
+    ...screenerColumns,
     {
       field: "analyze",
       headerName: "AI",

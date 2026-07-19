@@ -20,7 +20,7 @@ class PortfolioCreate(BaseModel):
     name: str = Field(min_length=1)
     initial_capital: float = Field(gt=0)
     monthly_contribution: float = Field(ge=0)
-    core: CorePick
+    core: list[CorePick] = Field(min_length=1)
     satellites: list[SatellitePick]
 
 

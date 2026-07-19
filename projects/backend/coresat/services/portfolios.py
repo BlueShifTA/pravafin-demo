@@ -22,14 +22,15 @@ class PortfolioService:
 
     async def create(self, spec: csd.PortfolioCreate) -> int:
         async with self._engine.begin() as conn:
-            fund_id = (
-                await conn.execute(
-                    text("SELECT id FROM funds WHERE ticker = :ticker"),
-                    {"ticker": spec.core.fund_ticker},
-                )
-            ).scalar()
-            if fund_id is None:
-                raise UnknownTickerError(f"unknown fund: {spec.core.fund_ticker}")
+            core_tickers = [pick.fund_ticker for pick in spec.core]
+            fund_rows = await conn.execute(
+                text("SELECT ticker, id FROM funds WHERE ticker = ANY(:tickers)"),
+                {"tickers": core_tickers},
+            )
+            fund_ids = {row.ticker: row.id for row in fund_rows}
+            missing_funds = set(core_tickers) - set(fund_ids)
+            if missing_funds:
+                raise UnknownTickerError(f"unknown funds: {sorted(missing_funds)}")
             tickers = [satellite.ticker for satellite in spec.satellites]
             instrument_ids: dict[str, int] = {}
             if tickers:
@@ -52,6 +53,7 @@ class PortfolioService:
                 )
             ).scalar_one()
 
+        core_weight = sum(pick.weight for pick in spec.core)
         satellite_weight = sum(satellite.weight for satellite in spec.satellites)
         async with csdb.portfolio_scope(self._engine, portfolio_id) as conn:
             core_sleeve = (
@@ -60,7 +62,7 @@ class PortfolioService:
                         "INSERT INTO sleeves (portfolio_id, kind, target_weight) "
                         "VALUES (:pid, 'core', :weight) RETURNING id"
                     ),
-                    {"pid": portfolio_id, "weight": spec.core.weight},
+                    {"pid": portfolio_id, "weight": core_weight},
                 )
             ).scalar_one()
             satellite_sleeve = (
@@ -72,19 +74,20 @@ class PortfolioService:
                     {"pid": portfolio_id, "weight": satellite_weight},
                 )
             ).scalar_one()
-            await conn.execute(
-                text(
-                    "INSERT INTO positions (portfolio_id, sleeve_id, fund_id, target_weight, "
-                    "invested_amount) VALUES (:pid, :sleeve, :fund, :weight, :invested)"
-                ),
-                {
-                    "pid": portfolio_id,
-                    "sleeve": core_sleeve,
-                    "fund": fund_id,
-                    "weight": spec.core.weight,
-                    "invested": spec.initial_capital * spec.core.weight,
-                },
-            )
+            for pick in spec.core:
+                await conn.execute(
+                    text(
+                        "INSERT INTO positions (portfolio_id, sleeve_id, fund_id, target_weight, "
+                        "invested_amount) VALUES (:pid, :sleeve, :fund, :weight, :invested)"
+                    ),
+                    {
+                        "pid": portfolio_id,
+                        "sleeve": core_sleeve,
+                        "fund": fund_ids[pick.fund_ticker],
+                        "weight": pick.weight,
+                        "invested": spec.initial_capital * pick.weight,
+                    },
+                )
             for satellite in spec.satellites:
                 await conn.execute(
                     text(

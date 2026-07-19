@@ -14,6 +14,7 @@ export interface PortfolioCreate {
   initial_capital: number;
   /** @minimum 0 */
   monthly_contribution: number;
-  core: CorePick;
+  /** @minItems 1 */
+  core: CorePick[];
   satellites: SatellitePick[];
 }
