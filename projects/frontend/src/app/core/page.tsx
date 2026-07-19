@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
 import { CandleChartCard } from "@/components/market/CandleChartCard";
+import { FundComparisonCard } from "@/components/market/FundComparisonCard";
 import { Spinner } from "@/components/ui/feedback/Spinner";
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format";
 import {
@@ -111,6 +112,7 @@ export default function CorePage() {
             </TableContainer>
           </CardContent>
         </Card>
+        <FundComparisonCard funds={funds} />
         <CandleChartCard ticker={selected} />
         {dragQuery.isLoading && (
           <Card variant="outlined">

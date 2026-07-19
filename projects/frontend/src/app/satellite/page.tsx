@@ -15,11 +15,13 @@ import {
   MenuItem,
   Select,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tabs,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -59,19 +61,21 @@ export default function SatellitePage() {
   const rows = sector === "all" ? screener : screener.filter((row) => row.sector === sector);
   const isLoading = screenerQuery.isLoading;
   const [selection, setSelection] = useState<string[]>([]);
-  const [chartTicker, setChartTicker] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<number>(0);
   const [compareOpen, setCompareOpen] = useState(false);
   const [analysisTicker, setAnalysisTicker] = useState<string | null>(null);
 
-  const financialsQuery = useFinancialsApiMarketFinancialsTickerGet(chartTicker ?? "", {
-    query: { enabled: chartTicker !== null },
+  // The active tab picks which selected stock's chart + financials to show.
+  const activeTicker = selection[Math.min(activeTab, Math.max(0, selection.length - 1))] ?? null;
+  const financialsQuery = useFinancialsApiMarketFinancialsTickerGet(activeTicker ?? "", {
+    query: { enabled: activeTicker !== null },
   });
   const financials = financialsQuery.data?.status === 200 ? financialsQuery.data.data : null;
 
   const onSelection = (model: GridRowSelectionModel) => {
     const ids = [...(model.ids ?? [])].map(String);
     setSelection(ids.slice(0, 4));
-    if (ids.length === 1) setChartTicker(ids[0]);
+    setActiveTab(0);
   };
 
   const columns: GridColDef[] = [
@@ -206,19 +210,31 @@ export default function SatellitePage() {
             />
           </CardContent>
         </Card>
-        <CandleChartCard ticker={chartTicker} />
-        {chartTicker && financialsQuery.isLoading && (
+        {selection.length > 1 && (
+          <Tabs
+            value={Math.min(activeTab, selection.length - 1)}
+            onChange={(_event, value) => setActiveTab(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            {selection.map((ticker) => (
+              <Tab key={ticker} label={ticker} />
+            ))}
+          </Tabs>
+        )}
+        <CandleChartCard ticker={activeTicker} />
+        {activeTicker && financialsQuery.isLoading && (
           <Card variant="outlined">
             <CardContent sx={{ display: "flex", justifyContent: "center", py: 6 }}>
               <Spinner size={32} />
             </CardContent>
           </Card>
         )}
-        {chartTicker && financials && (
+        {activeTicker && financials && (
           <Card variant="outlined">
             <CardContent>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                {chartTicker} — financials
+                {activeTicker} — financials
               </Typography>
               <FinancialsPanel series={financials} />
             </CardContent>

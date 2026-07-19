@@ -55,7 +55,7 @@ export function CandleChartCard({ ticker }: { ticker: string | null }) {
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            {ticker} — candles
+            {ticker}
           </Typography>
           <Stack direction="row" spacing={1.5}>
             <FormControl size="small" sx={{ minWidth: 110 }}>

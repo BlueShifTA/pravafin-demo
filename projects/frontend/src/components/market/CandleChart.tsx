@@ -30,17 +30,16 @@ export function CandleChart({ bars, indicators }: CandleChartProps) {
       layout: { attributionLogo: false },
     });
     const series = chart.addSeries(CandlestickSeries);
-    series.setData(
-      bars
-        .filter((bar) => bar.open != null && bar.high != null && bar.low != null)
-        .map((bar) => ({
-          time: bar.date,
-          open: bar.open as number,
-          high: bar.high as number,
-          low: bar.low as number,
-          close: bar.close,
-        }))
-    );
+    const candleData = bars
+      .filter((bar) => bar.open != null && bar.high != null && bar.low != null)
+      .map((bar) => ({
+        time: bar.date,
+        open: bar.open as number,
+        high: bar.high as number,
+        low: bar.low as number,
+        close: bar.close,
+      }));
+    series.setData(candleData);
     for (const overlay of OVERLAYS) {
       const line = chart.addSeries(LineSeries, {
         color: overlay.color,
@@ -55,7 +54,16 @@ export function CandleChart({ bars, indicators }: CandleChartProps) {
           .map((point) => ({ time: point.date, value: point[overlay.key] as number }))
       );
     }
-    chart.timeScale().fitContent();
+    // clamp the x-axis to the candles' own range so a longer SMA warm-up window
+    // does not stretch the time scale past the visible candles.
+    if (candleData.length > 0) {
+      chart.timeScale().setVisibleRange({
+        from: candleData[0].time,
+        to: candleData[candleData.length - 1].time,
+      });
+    } else {
+      chart.timeScale().fitContent();
+    }
     return () => chart.remove();
   }, [bars, indicators]);
 
