@@ -9,8 +9,8 @@ they are edited, reviewed, and executed against the live schema in one place
 than a live agent turn.
 
 Each value is a complete, runnable SELECT over the shared read-all fact tables
-(instruments, fundamentals, funds, fund_holdings). Literals (tickers, LIMIT,
-sector text) are placeholders the planner adapts per question.
+(instruments, fundamentals, funds, fund_holdings, doc_chunks). Literals (tickers,
+LIMIT, sector text) are placeholders the planner adapts per question.
 """
 
 TOP_STOCKS_BY_MARKET_CAP = (
@@ -40,6 +40,7 @@ ETF_SECTOR_EXPOSURE = (
     "WHERE f.ticker = 'IWDA.AS' GROUP BY f.ticker, fh.sector ORDER BY weight DESC"
 )
 DISTINCT_STOCK_SECTORS = "SELECT DISTINCT sector FROM instruments WHERE type = 'stock'"
+LIST_DOCUMENTS = "SELECT DISTINCT source_doc FROM doc_chunks ORDER BY source_doc LIMIT 10"
 
 
 # (intent label shown to the planner, template SQL) — order = prompt order.
@@ -52,6 +53,7 @@ SQL_TEMPLATES: tuple[tuple[str, str], ...] = (
     ("stocks in a sector", STOCKS_IN_SECTOR),
     ("an ETF's sector breakdown", ETF_SECTOR_EXPOSURE),
     ("discover the distinct sectors", DISTINCT_STOCK_SECTORS),
+    ("list or count the documents in the knowledge base", LIST_DOCUMENTS),
 )
 
 
