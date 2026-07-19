@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # Local Ollama
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3.5:4b"
+    ollama_model: str = "gemma4:e4b"
 
     # RAG — document embeddings (Ollama) and the cross-encoder reranker
     # (fastembed ONNX, no torch). embed model must match doc_chunks.embedding

@@ -67,7 +67,7 @@ describe("CopilotDrawer", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         if (String(input).includes("/api/copilot/info")) {
-          return new Response(JSON.stringify({ model: "qwen3.5:4b" }), { status: 200 });
+          return new Response(JSON.stringify({ model: "gemma4:e4b" }), { status: 200 });
         }
         return new Response(JSON.stringify(history), { status: 200 });
       })
@@ -78,7 +78,7 @@ describe("CopilotDrawer", () => {
     );
     expect(screen.getByText("How much did I invest?")).toBeInTheDocument();
     expect(screen.getByText("run_sql#1")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("Model: qwen3.5:4b")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Model: gemma4:e4b")).toBeInTheDocument());
 
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     fireEvent.click(screen.getByLabelText("clear chat"));

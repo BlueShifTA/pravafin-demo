@@ -170,7 +170,7 @@ def test_copilot_info_reports_configured_model() -> None:
     try:
         response = client.get("/api/copilot/info")
         assert response.status_code == 200
-        assert response.json()["model"] == "qwen3.5:4b"
+        assert response.json()["model"] == "gemma4:e4b"
     finally:
         client.__exit__(None, None, None)
 

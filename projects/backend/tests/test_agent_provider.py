@@ -12,7 +12,7 @@ def _settings(**overrides: object) -> Settings:
         "openai_api_key": "",
         "openai_model": "gpt-5-mini",
         "ollama_base_url": "http://localhost:11434",
-        "ollama_model": "qwen3.5:4b",
+        "ollama_model": "gemma4:e4b",
     }
     base.update(overrides)
     return Settings(**base)
@@ -21,7 +21,7 @@ def _settings(**overrides: object) -> Settings:
 def test_ollama_provider_builds_chat_model() -> None:
     model = build_chat_model("ollama", _settings())
     assert isinstance(model, BaseChatModel)
-    assert model.model == "qwen3.5:4b"  # type: ignore[attr-defined]
+    assert model.model == "gemma4:e4b"  # type: ignore[attr-defined]
 
 
 def test_openai_provider_builds_chat_model_with_key() -> None:

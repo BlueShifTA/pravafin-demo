@@ -4,7 +4,7 @@ The LLM is a FakeListChatModel — deterministic, no Ollama required.
 Auto-skips when Postgres is down (`just stack-up` to run).
 
 The final test runs against the real Ollama model (default app wiring) and is
-gated behind CORESAT_REAL_LLM=1 — needs Ollama serving qwen3.5:4b.
+gated behind CORESAT_REAL_LLM=1 — needs Ollama serving gemma4:e4b.
 """
 
 import asyncio
@@ -191,7 +191,7 @@ def test_comparison_writes_audit_row(portfolio_id: int) -> None:
 
 @pytest.mark.skipif(
     os.environ.get("CORESAT_REAL_LLM") != "1",
-    reason="real-LLM test — set CORESAT_REAL_LLM=1 with Ollama serving qwen3.5:4b",
+    reason="real-LLM test — set CORESAT_REAL_LLM=1 with Ollama serving gemma4:e4b",
 )
 def test_real_llm_comparison_end_to_end(portfolio_id: int) -> None:
     client = TestClient(app)
@@ -202,7 +202,7 @@ def test_real_llm_comparison_end_to_end(portfolio_id: int) -> None:
         )
         assert response.status_code == 200, response.text
         result = response.json()
-        assert result["model"] == "qwen3.5:4b"
+        assert result["model"] == "gemma4:e4b"
         assert result["per_criterion"]
         assert result["per_ticker"]
         assert result["recommendation"]

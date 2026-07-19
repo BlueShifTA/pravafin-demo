@@ -1,10 +1,11 @@
 # Full-stack deployment: postgres(pgvector) + ollama + backend + frontend.
-# Build + run from the repo root:
-#   docker compose -f devops/docker-compose.deploy.yml up --build -d
+# Build + run from the repo root (--env-file loads secrets like OPENAI_API_KEY
+# from the repo-root .env; the compose project dir would otherwise miss it):
+#   docker compose -f devops/docker-compose.deploy.yml --env-file .env up --build -d
 # First run only, pull the models the copilot needs (chat + embeddings):
 #   docker compose -f devops/docker-compose.deploy.yml exec ollama \
-#     sh -c "ollama pull qwen3.5:4b && ollama pull nomic-embed-text"
-# Override secrets via a .env file next to this compose or the shell environment.
+#     sh -c "ollama pull gemma4:e4b && ollama pull nomic-embed-text"
+# The copilot runs on the local Ollama model; the draft agent uses OPENAI_API_KEY.
 
 name: coresat
 
@@ -64,10 +65,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://coresat_app:coresat_app@postgres:5432/coresat
       ADMIN_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/coresat
       OLLAMA_BASE_URL: http://ollama:11434
-      # Production runs the agents on OpenAI; Ollama stays only for RAG
-      # embeddings (nomic-embed-text) + the reranker. Override back to ollama
-      # per agent via the shell env / .env if you want the local model.
-      COPILOT_PROVIDER: ${COPILOT_PROVIDER:-openai}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
+      # The copilot runs on the local Ollama model (gemma4:e4b) by default; the
+      # draft agent stays on OpenAI. Override either provider via the shell env
+      # / .env. Ollama also serves RAG embeddings (nomic-embed-text) + reranker.
+      COPILOT_PROVIDER: ${COPILOT_PROVIDER:-ollama}
       DRAFT_AGENT_PROVIDER: ${DRAFT_AGENT_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-nano}
