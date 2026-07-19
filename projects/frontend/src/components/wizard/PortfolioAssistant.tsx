@@ -246,7 +246,16 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
       </Box>
 
       {draft != null && (
-        <Box sx={{ width: 340, flexShrink: 0, position: "sticky", top: 16 }}>
+        <Box
+          sx={{
+            width: 340,
+            flexShrink: 0,
+            position: "sticky",
+            top: 16,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <Typography variant="overline" color="text.secondary">
             Proposed portfolio
           </Typography>
