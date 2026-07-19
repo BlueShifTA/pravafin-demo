@@ -121,12 +121,14 @@ class FundRow(BaseModel):
     ticker: str
     name: str
     provider: str | None
+    category: str | None
     currency: str | None
     fund_size: float | None
     ter: float | None
     dist_yield: float | None
     cagr_5y: float | None
     cagr_10y: float | None
+    holdings_count: int
 
 
 class YearlyFinancials(BaseModel):

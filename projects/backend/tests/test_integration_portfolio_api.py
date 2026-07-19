@@ -139,6 +139,19 @@ def test_candles_endpoint_returns_ohlcv(client: TestClient) -> None:
     assert bars[1]["high"] == 111
 
 
+def test_candles_resampled_by_month_buckets_ohlcv(client: TestClient) -> None:
+    # interval=1M resamples daily bars into monthly buckets (open=first, high=max,
+    # low=min, close=last, date=bucket start). TSTP's two bars fall in different
+    # months, so each becomes one bucket carrying that day's OHLC.
+    bars = client.get("/api/market/candles/TSTP", params={"interval": "1M"}).json()
+    assert len(bars) == 2
+    assert [b["date"] for b in bars] == ["2024-01-01", "2026-01-01"]
+    assert [b["open"] for b in bars] == [99, 109]
+    assert [b["high"] for b in bars] == [101, 111]
+    assert [b["low"] for b in bars] == [98, 108]
+    assert [b["close"] for b in bars] == [100, 110]
+
+
 def test_screener_computes_magic_formula_on_the_fly(client: TestClient) -> None:
     rows = client.get("/api/market/screener").json()
     tstp = next(row for row in rows if row["ticker"] == "TSTP")

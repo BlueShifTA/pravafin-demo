@@ -29,8 +29,9 @@ async def candles(
     ticker: str,
     request: Request,
     days: Annotated[int | None, Query(ge=1)] = None,
+    interval: Annotated[str | None, Query()] = None,
 ) -> list[CandleBar]:
-    bars = await _analytics(request).candles(ticker, days)
+    bars = await _analytics(request).candles(ticker, days, interval)
     if not bars:
         raise HTTPException(status_code=404, detail=f"no prices for {ticker}")
     return bars
@@ -43,7 +44,7 @@ async def indicators(
     days: Annotated[int | None, Query(ge=1)] = None,
 ) -> list[IndicatorPoint]:
     # full history feeds the warm-up windows; `days` only slices the tail
-    bars = await _analytics(request).candles(ticker, None)
+    bars = await _analytics(request).candles(ticker, None, None)
     if not bars:
         raise HTTPException(status_code=404, detail=f"no prices for {ticker}")
     points = indicator_points(bars)

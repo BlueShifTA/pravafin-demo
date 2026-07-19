@@ -520,17 +520,36 @@ class AnalyticsService:
         )
         return list(result.mappings().all())
 
-    async def candles(self, ticker: str, days: int | None) -> list[CandleBar]:
+    async def candles(self, ticker: str, days: int | None, interval: str | None) -> list[CandleBar]:
+        # 1D (or unset) is the raw daily granularity; 7D/1M resample the daily
+        # bars into weekly/monthly OHLCV buckets (open=first, high=max, low=min,
+        # close=last, volume=sum). prices_daily is the only price source.
+        trunc = {"7D": "week", "1M": "month"}.get(interval or "")
+        window = "AND (CAST(:days AS int) IS NULL OR p.date >= current_date - CAST(:days AS int))"
         async with self._engine.connect() as conn:
-            rows = await conn.execute(
-                text(
-                    "SELECT date, open, high, low, close, volume FROM prices_daily p "
-                    "JOIN instruments i ON i.id = p.instrument_id WHERE i.ticker = :ticker "
-                    "AND (CAST(:days AS int) IS NULL OR p.date >= current_date - CAST(:days AS int)) "
-                    "ORDER BY p.date"
-                ),
-                {"ticker": ticker, "days": days},
-            )
+            if trunc is None:
+                rows = await conn.execute(
+                    text(
+                        "SELECT date, open, high, low, close, volume FROM prices_daily p "
+                        "JOIN instruments i ON i.id = p.instrument_id WHERE i.ticker = :ticker "
+                        f"{window} ORDER BY p.date"
+                    ),
+                    {"ticker": ticker, "days": days},
+                )
+            else:
+                rows = await conn.execute(
+                    text(
+                        "SELECT date_trunc(:trunc, p.date)::date AS date, "
+                        "(array_agg(p.open ORDER BY p.date))[1] AS open, "
+                        "max(p.high) AS high, min(p.low) AS low, "
+                        "(array_agg(p.close ORDER BY p.date DESC))[1] AS close, "
+                        "sum(p.volume)::bigint AS volume "
+                        "FROM prices_daily p JOIN instruments i ON i.id = p.instrument_id "
+                        f"WHERE i.ticker = :ticker {window} "
+                        "GROUP BY date_trunc(:trunc, p.date) ORDER BY date_trunc(:trunc, p.date)"
+                    ),
+                    {"ticker": ticker, "days": days, "trunc": trunc},
+                )
             return [CandleBar(**row) for row in rows.mappings()]
 
     async def yearly_financials(self, ticker: str) -> list[YearlyFinancials]:
@@ -572,8 +591,11 @@ class AnalyticsService:
         async with self._engine.connect() as conn:
             rows = await conn.execute(
                 text(
-                    "SELECT ticker, name, provider, currency, fund_size, ter, dist_yield, "
-                    "cagr_5y, cagr_10y FROM funds WHERE valid_to IS NULL ORDER BY ticker"
+                    "SELECT f.ticker, f.name, f.provider, f.category, f.currency, "
+                    "f.fund_size, f.ter, f.dist_yield, f.cagr_5y, f.cagr_10y, "
+                    "(SELECT count(*) FROM fund_holdings fh WHERE fh.fund_id = f.id) "
+                    "AS holdings_count "
+                    "FROM funds f WHERE f.valid_to IS NULL ORDER BY f.ticker"
                 )
             )
             return [FundRow(**row) for row in rows.mappings()]
@@ -582,9 +604,12 @@ class AnalyticsService:
         async with self._engine.connect() as conn:
             rows = await conn.execute(
                 text(
-                    "SELECT ticker, name, provider, currency, fund_size, ter, dist_yield, "
-                    "cagr_5y, cagr_10y FROM funds "
-                    "WHERE valid_to IS NULL AND ticker = ANY(:tickers) ORDER BY ticker"
+                    "SELECT f.ticker, f.name, f.provider, f.category, f.currency, "
+                    "f.fund_size, f.ter, f.dist_yield, f.cagr_5y, f.cagr_10y, "
+                    "(SELECT count(*) FROM fund_holdings fh WHERE fh.fund_id = f.id) "
+                    "AS holdings_count "
+                    "FROM funds f "
+                    "WHERE f.valid_to IS NULL AND f.ticker = ANY(:tickers) ORDER BY f.ticker"
                 ),
                 {"tickers": list(tickers)},
             )
