@@ -150,10 +150,11 @@ function futureValue(capital: number, annual: number, rate: number, years: numbe
 }
 
 function DashboardBody({ summary }: { summary: PortfolioSummary }) {
-  // Projection starts from the portfolio's real current value; monthly is the
-  // editable what-if input and drives the projection client-side (the backend
-  // rate stays fixed).
+  // Projection starts from the portfolio's real current value; invested (cost
+  // basis) and monthly are the editable what-if inputs and drive the gain and
+  // projection client-side (the backend rate stays fixed).
   const capital = summary.current_value;
+  const [invested, setInvested] = useState<number>(summary.invested_total);
   const [monthly, setMonthly] = useState<number>(summary.monthly_contribution);
 
   const rate = summary.projections[0]?.annual_rate ?? 0;
@@ -166,16 +167,16 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
   const low = [capital, ...years.map((y) => project(rate - 0.01, y))];
   const high = [capital, ...years.map((y) => project(rate + 0.01, y))];
 
-  const gain = capital - summary.invested_total;
-  const gainPct = summary.invested_total ? gain / summary.invested_total : 0;
+  const gain = capital - invested;
+  const gainPct = invested ? gain / invested : 0;
 
   return (
     <Fade in timeout={900}>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard label="Invested" value={`$${currency.format(summary.invested_total)}`} />
+        <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
+          <EditableStatCard label="Invested" value={invested} onChange={setInvested} />
         </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+        <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
           <StatCard
             label="Gain / loss"
             value={`${gain >= 0 ? "+" : "−"}$${currency.format(Math.abs(gain))}`}
@@ -183,17 +184,17 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
             accent={gain >= 0 ? "up" : "down"}
           />
         </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+        <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
           <EditableStatCard label="Monthly" value={monthly} onChange={setMonthly} />
         </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+        <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
           <StatCard
             label="Expected 10y"
             value={`$${currency.format(project(rate, 10))}`}
             sub={`${formatPercent(rate)}/yr`}
           />
         </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+        <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
           <StatCard
             label="Expected 20y"
             value={`$${currency.format(project(rate, 20))}`}
