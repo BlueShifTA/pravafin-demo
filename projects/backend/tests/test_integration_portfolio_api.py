@@ -111,9 +111,9 @@ def test_summary_values_positions_from_prices(client: TestClient) -> None:
     core = next(s for s in summary["allocation"] if s["label"] == "TSTF")
     assert core["value"] == pytest.approx(8000)
     assert summary["current_value"] == pytest.approx(10_200)
-    # projections present for both horizons with bands
+    # per-year projection points (1..20) so the chart has one per year, with bands
     horizons = {p["years"] for p in summary["projections"]}
-    assert horizons == {10, 20}
+    assert horizons == set(range(1, 21))
     ten = next(p for p in summary["projections"] if p["years"] == 10)
     assert ten["low"] < ten["expected"] < ten["high"]
 

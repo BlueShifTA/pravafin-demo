@@ -13,7 +13,9 @@ import coresat.db as csdb
 import coresat.domain as csd
 from coresat.services.projection import project
 
-_HORIZONS = (10, 20)
+# Per-year horizons (1..20) so the projection chart has a point for every year;
+# the 10y/20y milestones remain in the set for the dashboard cards + copilot.
+_HORIZONS = tuple(range(1, 21))
 
 # Health-radar anchors (g_good, g_bad) — lower raw metric is better for all six.
 _ALLOC_GOOD, _ALLOC_BAD = 0.0, 0.10
