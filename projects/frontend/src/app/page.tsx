@@ -1,13 +1,25 @@
 "use client";
 
-import { Box, Card, CardContent, Grid, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Card,
+  CardContent,
+  Fade,
+  Grid,
+  InputAdornment,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { LineChart, PieChart, RadarChart } from "@mui/x-charts";
+import { useState } from "react";
 
 import type { PortfolioHealth } from "@/lib/generated/models/portfolioHealth";
+import type { PortfolioSummary } from "@/lib/generated/models/portfolioSummary";
 
 import { PageShell } from "@/components/layout/PageShell";
 import { Spinner } from "@/components/ui/feedback/Spinner";
-import { formatMoneyCompact, formatPercent } from "@/lib/format";
+import { formatPercent } from "@/lib/format";
 import { usePortfolioSummaryApiPortfoliosPortfolioIdSummaryGet } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
@@ -98,6 +110,175 @@ function HealthCard({ health }: { health: PortfolioHealth }) {
   );
 }
 
+function EditableStatCard({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <Card variant="outlined" sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="overline" color="text.secondary">
+          {label}
+        </Typography>
+        <TextField
+          variant="standard"
+          type="number"
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          fullWidth
+          slotProps={{
+            input: {
+              startAdornment: <InputAdornment position="start">$</InputAdornment>,
+              sx: { fontWeight: 700, fontSize: "1.35rem", letterSpacing: "-0.01em" },
+            },
+          }}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+// axis unit so the projection y-axis title carries the K/M/B suffix and the
+// ticks stay plain numbers (e.g. label "value ($M)", ticks 0.2, 0.4, …).
+const AXIS_UNITS: [number, string][] = [
+  [1_000_000_000, "B"],
+  [1_000_000, "M"],
+  [1_000, "K"],
+];
+
+function futureValue(capital: number, annual: number, rate: number, years: number): number {
+  const growth = (1 + rate) ** years;
+  if (rate === 0) return capital + annual * years;
+  return capital * growth + annual * ((growth - 1) / rate);
+}
+
+function DashboardBody({ summary }: { summary: PortfolioSummary }) {
+  // Editable what-if inputs: default to the portfolio's own values, then drive
+  // the projection client-side (the backend rate stays fixed).
+  const [capital, setCapital] = useState<number>(summary.current_value);
+  const [monthly, setMonthly] = useState<number>(summary.monthly_contribution);
+
+  const rate = summary.projections[0]?.annual_rate ?? 0;
+  const years = summary.projections.map((projection) => projection.years);
+  const project = (annualRate: number, y: number) =>
+    futureValue(capital, monthly * 12, annualRate, y);
+
+  const horizonYears = [0, ...years];
+  const expected = [capital, ...years.map((y) => project(rate, y))];
+  const low = [capital, ...years.map((y) => project(rate - 0.01, y))];
+  const high = [capital, ...years.map((y) => project(rate + 0.01, y))];
+  const [unit, suffix] = AXIS_UNITS.find(([threshold]) => Math.max(...high) >= threshold) ?? [
+    1,
+    "",
+  ];
+
+  const gain = capital - summary.invested_total;
+  const gainPct = summary.invested_total ? gain / summary.invested_total : 0;
+
+  return (
+    <Fade in timeout={900}>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <EditableStatCard label="Current value" value={capital} onChange={setCapital} />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <StatCard label="Invested" value={`$${currency.format(summary.invested_total)}`} />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <StatCard
+            label="Gain / loss"
+            value={`${gain >= 0 ? "+" : "−"}$${currency.format(Math.abs(gain))}`}
+            sub={`${gain >= 0 ? "+" : "−"}${formatPercent(Math.abs(gainPct))}`}
+            accent={gain >= 0 ? "up" : "down"}
+          />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <EditableStatCard label="Monthly" value={monthly} onChange={setMonthly} />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <StatCard
+            label="Expected 10y"
+            value={`$${currency.format(project(rate, 10))}`}
+            sub={`${formatPercent(rate)}/yr`}
+          />
+        </Grid>
+        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
+          <StatCard
+            label="Expected 20y"
+            value={`$${currency.format(project(rate, 20))}`}
+            sub={`${formatPercent(rate)}/yr`}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <HealthCard health={summary.health} />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card variant="outlined" sx={{ height: "100%" }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Allocation
+              </Typography>
+              <PieChart
+                height={260}
+                skipAnimation
+                series={[
+                  {
+                    data: summary.allocation.map((slice, index) => ({
+                      id: index,
+                      value: slice.value,
+                      label: `${slice.label} (${slice.kind})`,
+                    })),
+                    innerRadius: 50,
+                  },
+                ]}
+              />
+              <Stack spacing={0.5}>
+                {summary.drift.map((sleeve) => (
+                  <Typography key={sleeve.kind} variant="body2" color="text.secondary">
+                    {sleeve.kind}: {formatPercent(sleeve.actual_weight)} vs target{" "}
+                    {formatPercent(sleeve.target_weight, 0)} (drift {formatPercent(sleeve.drift)})
+                  </Typography>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={12}>
+          <Card variant="outlined" sx={{ height: "100%" }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Projection (weighted CAGR ±1%) — edit current value or monthly to explore
+              </Typography>
+              <LineChart
+                height={300}
+                skipAnimation
+                xAxis={[{ data: horizonYears, label: "years" }]}
+                yAxis={[
+                  {
+                    label: `value ($${suffix})`,
+                    valueFormatter: (value: number | null) =>
+                      value == null ? "" : (value / unit).toFixed(1),
+                  },
+                ]}
+                series={[
+                  { data: expected, label: "expected" },
+                  { data: low, label: "low (−1%)" },
+                  { data: high, label: "high (+1%)" },
+                ]}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Fade>
+  );
+}
+
 export default function DashboardPage() {
   const { portfolioId } = usePortfolio();
   const summaryQuery = usePortfolioSummaryApiPortfoliosPortfolioIdSummaryGet(portfolioId ?? 0, {
@@ -125,105 +306,9 @@ export default function DashboardPage() {
     );
   }
 
-  const horizonYears = [0, ...summary.projections.map((projection) => projection.years)];
-  const expected = [summary.current_value, ...summary.projections.map((p) => p.expected)];
-  const low = [summary.current_value, ...summary.projections.map((p) => p.low)];
-  const high = [summary.current_value, ...summary.projections.map((p) => p.high)];
-
-  const gain = summary.current_value - summary.invested_total;
-  const gainPct = summary.invested_total ? gain / summary.invested_total : 0;
-  const projectionFor = (years: number) =>
-    summary.projections.find((projection) => projection.years === years) ?? null;
-  const p10 = projectionFor(10);
-  const p20 = projectionFor(20);
-
   return (
     <PageShell title={summary.name} description="Current situation, allocation and projection.">
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard label="Current value" value={`$${currency.format(summary.current_value)}`} />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard label="Invested" value={`$${currency.format(summary.invested_total)}`} />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard
-            label="Gain / loss"
-            value={`${gain >= 0 ? "+" : "−"}$${currency.format(Math.abs(gain))}`}
-            sub={`${gain >= 0 ? "+" : "−"}${formatPercent(Math.abs(gainPct))}`}
-            accent={gain >= 0 ? "up" : "down"}
-          />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard label="Monthly" value={`$${currency.format(summary.monthly_contribution)}`} />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard
-            label="Expected 10y"
-            value={p10 ? `$${currency.format(p10.expected)}` : "n/a"}
-            sub={p10 ? `${formatPercent(p10.annual_rate)}/yr` : undefined}
-          />
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 2 }}>
-          <StatCard
-            label="Expected 20y"
-            value={p20 ? `$${currency.format(p20.expected)}` : "n/a"}
-            sub={p20 ? `${formatPercent(p20.annual_rate)}/yr` : undefined}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <HealthCard health={summary.health} />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card variant="outlined" sx={{ height: "100%" }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Allocation
-              </Typography>
-              <PieChart
-                height={260}
-                series={[
-                  {
-                    data: summary.allocation.map((slice, index) => ({
-                      id: index,
-                      value: slice.value,
-                      label: `${slice.label} (${slice.kind})`,
-                    })),
-                    innerRadius: 50,
-                  },
-                ]}
-              />
-              <Stack spacing={0.5}>
-                {summary.drift.map((sleeve) => (
-                  <Typography key={sleeve.kind} variant="body2" color="text.secondary">
-                    {sleeve.kind}: {formatPercent(sleeve.actual_weight)} vs target{" "}
-                    {formatPercent(sleeve.target_weight, 0)} (drift {formatPercent(sleeve.drift)})
-                  </Typography>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={12}>
-          <Card variant="outlined" sx={{ height: "100%" }}>
-            <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Projection (weighted CAGR ±1%)
-              </Typography>
-              <LineChart
-                height={300}
-                xAxis={[{ data: horizonYears, label: "years" }]}
-                yAxis={[{ valueFormatter: (value: number | null) => formatMoneyCompact(value) }]}
-                series={[
-                  { data: expected, label: "expected" },
-                  { data: low, label: "low (−1%)" },
-                  { data: high, label: "high (+1%)" },
-                ]}
-              />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <DashboardBody key={portfolioId} summary={summary} />
     </PageShell>
   );
 }
