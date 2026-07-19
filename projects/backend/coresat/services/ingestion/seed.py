@@ -14,6 +14,7 @@ import pathlib
 import coresat.core as csc
 import coresat.db as csdb
 import coresat.services.agent as csa
+from coresat.services.ingestion.loaders import backfill_market_cap
 from coresat.services.ingestion.pipeline import IngestionPipeline, build_registry
 
 log = logging.getLogger(__name__)
@@ -21,6 +22,31 @@ log = logging.getLogger(__name__)
 _HOLDINGS_FUNDS = {"iwda_holdings.csv": "IWDA.AS", "cspx_holdings.csv": "CSPX.L"}
 
 _MAGIC_INPUT_COLUMNS = ("ebit", "nwc", "ppe_net", "cash", "shares")
+_SEC_COMPARISON_FIELDS = {
+    "revenue": "revenue",
+    "net_profit": "net_income",
+    "profit_margin": "net_margin",
+    "free_cashflow": "fcf",
+}
+
+
+def _total_debt(financials: dict[str, str]) -> str:
+    lt_debt = financials.get("lt_debt") or "0"
+    st_debt = financials.get("st_debt") or "0"
+    total = float(lt_debt) + float(st_debt)
+    return str(int(total)) if total else ""
+
+
+def _financials_only_row(ticker: str, financials: dict[str, str]) -> dict[str, str]:
+    # A ticker present only in financials_10y (no valuation snapshot): emit a
+    # fundamentals row from its balance sheet so the screener still covers it.
+    # market_cap is left blank and derived later (latest close x shares).
+    row = {"ticker": ticker, "total_debt": _total_debt(financials)}
+    for column in _MAGIC_INPUT_COLUMNS:
+        row[column] = financials.get(column, "")
+    for target, source in _SEC_COMPARISON_FIELDS.items():
+        row[target] = financials.get(source, "")
+    return row
 
 
 def merge_fundamentals(stocks_csv: bytes, financials_csv: bytes) -> bytes:
@@ -28,6 +54,9 @@ def merge_fundamentals(stocks_csv: bytes, financials_csv: bytes) -> bytes:
 
     fundamentals_stocks.csv has valuation ratios but no balance-sheet items;
     financials_10y.csv (SEC XBRL) has them per fiscal year. total_debt = lt + st.
+    Tickers that appear only in financials_10y (no snapshot) still get a row from
+    their balance sheet — otherwise the magic-formula screener would only ever
+    see the ~150 snapshot stocks instead of the full ingested universe.
     """
     latest: dict[str, dict[str, str]] = {}
     for row in csv.DictReader(io.StringIO(financials_csv.decode("utf-8-sig"))):
@@ -37,21 +66,27 @@ def merge_fundamentals(stocks_csv: bytes, financials_csv: bytes) -> bytes:
 
     reader = csv.DictReader(io.StringIO(stocks_csv.decode("utf-8-sig")))
     base_fields = list(reader.fieldnames or [])
-    extra_fields = [
-        column for column in (*_MAGIC_INPUT_COLUMNS, "total_debt") if column not in base_fields
-    ]
+    merged_fields = (*_MAGIC_INPUT_COLUMNS, "total_debt", *_SEC_COMPARISON_FIELDS)
+    extra_fields = [column for column in merged_fields if column not in base_fields]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=base_fields + extra_fields)
     writer.writeheader()
+    written: set[str] = set()
     for row in reader:
         financials = latest.get(row["ticker"], {})
         for column in _MAGIC_INPUT_COLUMNS:
-            row.setdefault(column, financials.get(column, ""))
-        lt_debt = financials.get("lt_debt") or "0"
-        st_debt = financials.get("st_debt") or "0"
-        total = float(lt_debt) + float(st_debt)
-        row.setdefault("total_debt", str(int(total)) if total else "")
+            if not row.get(column):
+                row[column] = financials.get(column, "")
+        if not row.get("total_debt"):
+            row["total_debt"] = _total_debt(financials)
+        for target, source in _SEC_COMPARISON_FIELDS.items():
+            if not row.get(target):
+                row[target] = financials.get(source, "")
         writer.writerow(row)
+        written.add(row["ticker"])
+    for ticker, financials in latest.items():
+        if ticker not in written:
+            writer.writerow(_financials_only_row(ticker, financials))
     return output.getvalue().encode()
 
 
@@ -119,6 +154,12 @@ async def seed(data_dir: pathlib.Path) -> None:
                 log.warning("%s: FAILED, skipped — %s", path.name, error)
                 continue
             log.info("%s: %s chunks=%d", path.name, report.status, report.rows_ok)
+        # Derive market_cap for financials-only stocks (latest close x shares) so
+        # the magic-formula screener ranks the full universe, not just the ~150
+        # valuation-snapshot stocks. Runs after prices are loaded; fills NULLs only.
+        async with engine.begin() as conn:
+            filled = await backfill_market_cap(conn)
+        log.info("market_cap derived for %d financials-only stocks", filled)
     finally:
         await engine.dispose()
 

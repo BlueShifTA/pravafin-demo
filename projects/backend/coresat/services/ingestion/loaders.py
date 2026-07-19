@@ -34,6 +34,27 @@ async def _ensure_instruments(conn: AsyncConnection, tickers: set[str]) -> dict[
     return {row.ticker: row.id for row in rows}
 
 
+async def backfill_market_cap(conn: AsyncConnection) -> int:
+    """Derive market_cap = latest close x shares for stocks that lack one.
+
+    Financials-only tickers land in `fundamentals` with balance-sheet inputs but
+    no market_cap (SEC data carries no price), so the magic-formula screener drops
+    them. Fill it from the newest close. Only touches NULL market_caps, so the
+    valuation-snapshot caps are never overwritten. Returns the number of rows set.
+    """
+    result = await conn.execute(
+        text(
+            "UPDATE fundamentals f SET market_cap = latest.close * f.shares "
+            "FROM (SELECT DISTINCT ON (instrument_id) instrument_id, close "
+            "FROM prices_daily ORDER BY instrument_id, date DESC) latest "
+            "WHERE latest.instrument_id = f.instrument_id "
+            "AND f.market_cap IS NULL AND f.shares IS NOT NULL AND f.shares > 0 "
+            "AND latest.close IS NOT NULL"
+        )
+    )
+    return result.rowcount
+
+
 async def load_instruments(conn: AsyncConnection, records: Sequence[BaseModel]) -> None:
     instruments = cast(Sequence[csd.InstrumentRecord], records)
     await conn.execute(
@@ -125,7 +146,8 @@ _FUNDAMENTALS_VALUES = ", ".join(
     f":{column.strip()}" for column in _FUNDAMENTALS_COLUMNS.split(",")
 )
 _FUNDAMENTALS_UPDATES = ", ".join(
-    f"{column.strip()} = excluded.{column.strip()}" for column in _FUNDAMENTALS_COLUMNS.split(",")
+    f"{column.strip()} = COALESCE(excluded.{column.strip()}, fundamentals.{column.strip()})"
+    for column in _FUNDAMENTALS_COLUMNS.split(",")
 )
 
 

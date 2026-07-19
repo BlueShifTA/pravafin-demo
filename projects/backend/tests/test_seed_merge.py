@@ -1,4 +1,7 @@
-"""Fundamentals merge (unit): valuation snapshot + latest-FY magic-formula inputs."""
+"""Fundamentals merge (unit): valuation snapshot + latest-FY SEC inputs."""
+
+import csv
+import io
 
 import coresat.services.ingestion as csi
 
@@ -34,3 +37,34 @@ def test_missing_financials_keeps_snapshot_row() -> None:
         b"ticker,name,market_cap\nZZZT,No Financials Inc,5\n", FINANCIALS_CSV
     ).decode()
     assert any(row.startswith("ZZZT") for row in merged.splitlines())
+
+
+def test_financials_only_ticker_gets_a_row() -> None:
+    # AMD is in financials_10y but has no valuation snapshot row — it must still
+    # get a fundamentals row (from its balance sheet) so the screener covers it.
+    financials = (
+        FINANCIALS_CSV
+        + b"AMD,2025,,,,,,,,5000000000,,,1000000000,2000000000,3000000000,4000000000,500000000,,1600000000\n"
+    )
+    merged = csi.merge_fundamentals(STOCKS_CSV, financials).decode()
+    amd = next((row for row in merged.splitlines() if row.startswith("AMD")), None)
+    assert amd is not None
+    assert "5000000000" in amd  # ebit carried from financials
+    assert "4500000000" in amd  # total_debt = lt (4e9) + st (5e8)
+
+
+def test_financials_only_ticker_carries_available_comparison_fields() -> None:
+    financials = (
+        FINANCIALS_CSV + b"AMD,2025,10000000000,,500000000,0.05,900000000,200000000,700000000,"
+        b"800000000,,,1000000000,2000000000,3000000000,4000000000,500000000,"
+        b"5000000000,1600000000\n"
+    )
+
+    merged = csi.merge_fundamentals(STOCKS_CSV, financials).decode()
+    rows = list(csv.DictReader(io.StringIO(merged)))
+    amd = next(row for row in rows if row["ticker"] == "AMD")
+
+    assert amd["revenue"] == "10000000000"
+    assert amd["net_profit"] == "500000000"
+    assert amd["profit_margin"] == "0.05"
+    assert amd["free_cashflow"] == "700000000"

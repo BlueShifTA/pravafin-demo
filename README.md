@@ -21,7 +21,7 @@ FastAPI + PostgreSQL (RLS) backend · Next.js/MUI frontend · local Ollama LLM.
 ```bash
 just install          # deps + pre-commit
 just stack-up         # Postgres 16 (pgvector image) on :5434 + Adminer on :8080
-just ingest-all       # seed from ../etops-demo-data (541 tickers, 1.3M price rows)
+just ingest-all       # seed from ../etops-demo-data (1,200 instruments, 2.9M price rows)
 just run-backend      # FastAPI on :8000  (needs Ollama for /api/compare)
 just run-frontend     # Next.js on :3000
 ```
@@ -34,8 +34,8 @@ comparison and copilot tests are opt-in: `CORESAT_REAL_LLM=1 just test-backend
 ## Data
 
 Public sources staged in `../etops-demo-data/` (see its README for provenance and
-re-download recipes): S&P 500 universe with GICS sectors, 10y daily OHLCV for 541
-tickers, fundamentals + SEC XBRL 10-year financials, iShares fund holdings.
+re-download recipes): 1,000 stocks plus 200 ETFs, 10y daily OHLCV, full-universe
+stock fundamentals with SEC XBRL fallbacks, and iShares fund holdings.
 
 ## Documents
 

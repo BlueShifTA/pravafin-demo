@@ -197,3 +197,32 @@ async def test_fundamentals_do_not_clobber_universe_names(
             await conn.execute(text("SELECT name FROM instruments WHERE ticker = 'TSTN'"))
         ).scalar_one()
     assert name == "Authoritative Name"
+
+
+@pytest.mark.usefixtures("clean_db")
+async def test_sparse_fundamentals_reingest_preserves_existing_values(
+    pipeline: csi.IngestionPipeline,
+) -> None:
+    await pipeline.run(
+        "fundamentals_csv",
+        b"ticker,name,pe_trailing,revenue,ebit\nTSTN,Test Semi Corp,12.5,1000000,80000\n",
+    )
+
+    await pipeline.run(
+        "fundamentals_csv",
+        b"ticker,name,pe_trailing,revenue,ebit\nTSTN,Test Semi Corp,,,90000\n",
+    )
+
+    async with pipeline.engine.connect() as conn:
+        row = (
+            await conn.execute(
+                text(
+                    "SELECT f.pe_trailing, f.revenue, f.ebit FROM fundamentals f "
+                    "JOIN instruments i ON i.id = f.instrument_id WHERE i.ticker = 'TSTN'"
+                )
+            )
+        ).one()
+
+    assert float(row.pe_trailing) == 12.5
+    assert float(row.revenue) == 1_000_000
+    assert float(row.ebit) == 90_000
