@@ -2,6 +2,7 @@
 
 import csv
 import io
+import re
 from collections.abc import Iterator, Sequence
 from typing import Protocol
 
@@ -237,6 +238,20 @@ class FinancialsYearlyCsvAdapter:
         return valid, rejects
 
 
+# The KIID/factsheet risk-reward ruler ("Potentially Lower Rewards 1 2 3 4 5 6 7
+# Potentially Higher Rewards") is a graphic scale pypdf flattens into flat text.
+# It carries no fund fact, crowds the real KEY BENEFITS/RISKS out of the top
+# retrieved chunk, and the small synthesiser model parrots the labels back as if
+# they were listed benefits. Drop the two fixed labels and the 1-7 scale before
+# chunking. ponytail: the exact KIID label + the spaced 1-7 run only — never the
+# bare words "higher risk", which appear in genuine risk prose.
+_SRRI_RULER_RE = re.compile(r"Potentially (?:Lower|Higher) Rewards|(?<!\d)1 2 3 4 5 6 7(?!\d)")
+
+
+def _strip_srri_ruler(text: str) -> str:
+    return _SRRI_RULER_RE.sub(" ", text)
+
+
 def _chunk_text(body: str) -> Iterator[str]:
     """Word-pack `body` into ~_CHUNK_CHARS pieces; whitespace-only yields nothing."""
     buffer: list[str] = []
@@ -255,7 +270,9 @@ class PdfAdapter:
     """Per-page text extraction (pypdf) → word-packed chunks with page provenance."""
 
     name = "pdf"
-    version = "1"
+    # v2: strip the KIID/factsheet SRRI risk-reward ruler before chunking. The
+    # bump changes the ingest checksum so existing PDFs re-process on next ingest.
+    version = "2"
 
     def parse(self, payload: bytes, source_ref: str | None, /) -> ParseResult:
         if not source_ref:
@@ -267,8 +284,9 @@ class PdfAdapter:
             reader = PdfReader(io.BytesIO(payload))
             pages = [
                 # pypdf can emit NUL bytes; Postgres text columns reject 0x00
-                # (invalid in every encoding), so strip them before chunking.
-                (number, (page.extract_text() or "").replace("\x00", ""))
+                # (invalid in every encoding), so strip them, then drop the SRRI
+                # risk-reward ruler, before chunking.
+                (number, _strip_srri_ruler((page.extract_text() or "").replace("\x00", "")))
                 for number, page in enumerate(reader.pages, start=1)
             ]
         except PyPdfError as error:

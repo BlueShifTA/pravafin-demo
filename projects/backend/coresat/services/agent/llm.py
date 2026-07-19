@@ -6,6 +6,7 @@ deterministic code. Every call reports token usage for the per-node audit.
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import NamedTuple, Protocol
 
@@ -260,6 +261,17 @@ class AgentLLM(Protocol):
     ) -> tuple[csd.Answer, Usage]: ...
 
 
+# The small model copies the evidence-id brackets it sees in the prompt (the
+# [source#step_id] render below) into the answer prose, even though citations
+# are surfaced separately as chips. Strip the inline markers — with any leading
+# space — from the answer text; the structured `citations` field is untouched.
+_EVIDENCE_MARKER_RE = re.compile(r"\s*\[[a-z_]+#\d+\]")
+
+
+def _strip_evidence_markers(text: str) -> str:
+    return _EVIDENCE_MARKER_RE.sub("", text).strip()
+
+
 def _render_evidence(evidence: list[csd.Evidence]) -> str:
     if not evidence:
         return "(no evidence gathered — answer from the conversation alone)"
@@ -384,10 +396,14 @@ class ChatModelAgentLLM:
             ),
         ]
         try:
-            return await self._structured(csd.Answer, messages)
+            answer, usage = await self._structured(csd.Answer, messages)
         except Exception:
             # A persistent unparseable synthesis must not crash the SSE stream.
             # Flag a re-plan so the graph tries again and, if it still cannot
             # compose, refuses cleanly (give_up) instead of a 500 to the client.
             log.exception("synthesiser output unusable after retries; requesting re-plan")
             return csd.Answer(text="", needs_replan=True), Usage(tokens_in=0, tokens_out=0)
+        cleaned = _strip_evidence_markers(answer.text)
+        if cleaned != answer.text:
+            answer = answer.model_copy(update={"text": cleaned})
+        return answer, usage

@@ -45,6 +45,27 @@ def test_nul_bytes_are_stripped_from_extracted_text() -> None:
     assert valid[0].text == "cleantext here"
 
 
+def test_srri_reward_ruler_stripped_but_real_content_survives() -> None:
+    # KIID/factsheet risk-reward ruler ("Potentially Lower Rewards 1 2 3 4 5 6 7
+    # Potentially Higher Rewards") is graphic-scale noise pypdf flattens into
+    # flat text; it crowds the real KEY BENEFITS out of the top retrieved chunk
+    # and the small model parrots it back as if it were a listed benefit. The
+    # adapter must drop the ruler labels and the 1-7 scale, keeping real content.
+    page = (
+        "Potentially Lower Rewards 1 2 3 4 5 6 7 Potentially Higher Rewards "
+        "KEY BENEFITS 1. Exposure to large established U.S. companies "
+        "2. Global diversification"
+    )
+    valid, rejects = csi.PdfAdapter().parse(make_text_pdf([page]), "cspx.pdf")
+    assert rejects == []
+    body = " ".join(record.text for record in valid)
+    assert "Potentially Lower Rewards" not in body
+    assert "Potentially Higher Rewards" not in body
+    assert "1 2 3 4 5 6 7" not in body
+    assert "KEY BENEFITS" in body
+    assert "Exposure to large established U.S. companies" in body
+
+
 def test_chunk_text_starts_new_chunk_at_the_boundary() -> None:
     # 400 + 1 space + 400 = 801 > 800 → the second word opens a new chunk.
     chunks = list(_chunk_text(" ".join(["a" * 400, "b" * 400])))
