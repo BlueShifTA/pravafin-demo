@@ -29,6 +29,7 @@ import { PortfolioAssistant } from "@/components/wizard/PortfolioAssistant";
 import { screenerColumns } from "@/components/market/screenerColumns";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
+import { StatBox } from "@/components/ui/StatBox";
 import {
   getListPortfoliosApiPortfoliosGetQueryKey,
   useCreatePortfolioApiPortfoliosPost,
@@ -39,21 +40,6 @@ import { usePortfolio } from "@/lib/portfolio-context";
 
 const STEPS = ["Capital", "Core ETF", "Satellites", "Review"] as const;
 const CORE_PAGE_SIZE = 12; // 4 columns x 3 rows
-
-function StatBox({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="overline" color="text.secondary">
-          {label}
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: accent }}>
-          {value}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function WizardPage() {
   const router = useRouter();

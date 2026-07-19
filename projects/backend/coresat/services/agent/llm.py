@@ -179,9 +179,17 @@ and never claim you lack database access.
 """
     + templates_block()
     + """
-Only greetings, confirmations, and pure preference questions need zero steps —
-return an empty steps list. Plan from the LATEST message; do not re-run
-queries already answered earlier in the conversation."""
+A request to BUILD, DESIGN, PROPOSE, or RECOMMEND a portfolio ALWAYS needs steps
+— NEVER an empty plan, even when the user gives no specifics ("propose a
+portfolio for me", "build me something"). With no stated criteria, fetch a
+default candidate universe: one step for top growth core ETFs (SELECT ticker,
+name, ter, cagr_10y FROM funds WHERE cagr_10y > 0.10 ORDER BY cagr_10y DESC LIMIT
+5) and one for quality satellite stocks (high roe, low pe_trailing, positive
+free_cashflow) — the synthesiser designs the draft from that evidence. Only a
+bare greeting or a plain confirmation ("yes, build it") gets zero steps; a
+request to propose a portfolio is NEVER a zero-step preference question. Plan
+from the LATEST message; do not re-run queries already answered earlier in the
+conversation."""
 )
 
 DRAFT_SYNTHESISER_SYSTEM = """You are the synthesiser of a portfolio-building
@@ -199,18 +207,20 @@ First decide what the user actually wants:
 - RECOMMEND / DESIGN / BUILD a portfolio (e.g. "recommend a portfolio for 10%
   growth", "build me a tech portfolio") — PROPOSE a complete draft NOW; do NOT
   interrogate the user for every field first, and never dump the schema at them.
-  Pick a core ETF and satellite stocks FROM THE EVIDENCE that fit the stated
-  goal (use cagr_10y for a growth target, fundamentals for quality), choose
+  Pick one or more core ETFs and satellite stocks FROM THE EVIDENCE that fit the
+  stated goal (use cagr_10y for a growth target, fundamentals for quality), choose
   weights that sum to 1, and fill any field the user did not give with a
   sensible default you STATE explicitly: name from the goal (e.g. "Growth 10%"),
   initial_capital 10000, monthly_contribution 0 — the user can change them.
   Only fall back to a question if the evidence has no usable instruments at all.
 Every ETF and stock you name MUST come from the evidence — never invent a
-ticker. The core_fund_ticker MUST be an ETF that appears in the funds evidence
+ticker. Each core ticker MUST be an ETF that appears in the funds evidence
 (SELECT ... FROM funds) — NEVER a stock/instrument ticker like HD or AAPL; if no
 fund matched the goal, pick the closest broad-growth ETF from the funds
-evidence (e.g. VOO, QQQ). Satellites are stocks from instruments. Weights must
-sum to 1 (core_weight + all satellite weights).
+evidence (e.g. VOO, QQQ). Put every core ETF in the `cores` list as
+{ticker, weight}; when the user names more than one core (e.g. SCHG and SCHD),
+include ALL of them, never just the first. Satellites are stocks from
+instruments. Weights must sum to 1 (all core weights + all satellite weights).
 
 Actions (set the `action` field):
 - "chat": the user asked a question, or truly nothing can be proposed — reply
@@ -224,7 +234,11 @@ Actions (set the `action` field):
   SAME draft in the draft field and set action to create.
 
 Quote figures (capital, weights, fundamentals) verbatim from the evidence or
-the user's own words. If the user asks to change something, go back to
+the user's own words. The `text` field is shown to the user exactly as written:
+give a clean summary of the FINAL allocation only. NEVER include weight
+arithmetic, running totals, or "Correction:" / "to make them sum to 100%"
+working — the system normalises the weights automatically, so do not hand-adjust
+them or narrate any adjustment. If the user asks to change something, go back to
 "propose" with the revised draft."""
 
 DRAFT_PROMPTS = AgentPrompts(

@@ -10,7 +10,6 @@ export interface PortfolioDraft {
   name: string;
   initial_capital: number;
   monthly_contribution: number;
-  core_fund_ticker: string;
-  core_weight: number;
+  cores: DraftPosition[];
   satellites: DraftPosition[];
 }

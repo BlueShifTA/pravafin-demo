@@ -57,8 +57,9 @@ class PortfolioDraft(BaseModel):
     name: str
     initial_capital: float
     monthly_contribution: float
-    core_fund_ticker: str
-    core_weight: float
+    # One or more passive core ETFs (ticker + weight); the user may ask for a
+    # multi-ETF core (e.g. SCHG + SCHD). Satellites are the stock picks.
+    cores: list[DraftPosition]
     satellites: list[DraftPosition]
 
 

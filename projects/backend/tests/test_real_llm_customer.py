@@ -149,9 +149,8 @@ def test_customer_gets_a_grounded_response(message: str) -> None:
             draft = terminal_payload.get("draft")
             if isinstance(draft, dict):
                 # a proposal must be grounded: no invented tickers
-                assert draft["core_fund_ticker"] in _FUND_TICKERS, (
-                    f"invented core fund {draft['core_fund_ticker']!r}"
-                )
+                for core in draft["cores"]:
+                    assert core["ticker"] in _FUND_TICKERS, f"invented core fund {core['ticker']!r}"
                 satellites = draft["satellites"]
                 assert isinstance(satellites, list)
                 for satellite in satellites:

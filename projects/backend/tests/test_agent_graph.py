@@ -248,6 +248,48 @@ async def test_synthesiser_requested_replan_honoured_once() -> None:
     assert state["answer"].text == complete.text
 
 
+async def test_portfolio_proposal_is_not_grounding_gated() -> None:
+    # A design proposal invents allocation numbers (weights, default capital)
+    # the user never stated and no SQL returned — those are choices, not facts,
+    # so the fabrication guard must not reject a propose answer. Otherwise the
+    # draft agent re-plans, exhausts retries, and refuses instead of surfacing
+    # the portfolio the user asked it to build.
+    draft = csd.PortfolioDraft(
+        name="Growth 10%",
+        initial_capital=10000,
+        monthly_contribution=0,
+        cores=[csd.DraftPosition(ticker="SMH", weight=0.6)],
+        satellites=[csd.DraftPosition(ticker="NVDA", weight=0.4)],
+    )
+    proposal = csd.Answer(
+        text="Proposed: 60% SMH core, 40% NVDA, 10000 initial capital.",
+        action="propose",
+        draft=draft,
+    )
+    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[proposal])
+    state = await _graph(llm, "ticker=SMH, cagr_10y=0.3579").ainvoke(
+        csa.initial_state("build me a growth portfolio", "")
+    )
+    assert llm.plan_calls == 1  # proposed on the first try, no re-plan loop
+    assert state["grounded"] is True
+    assert state["answer"] is not None
+    assert state["answer"].action == "propose"
+    assert state["answer"].draft is not None
+
+
+async def test_draft_agent_chat_answer_still_grounded() -> None:
+    # A factual (action=chat) answer from the same draft agent stays fully
+    # grounded — the proposal exemption must not leak into Q&A.
+    fabricated = csd.Answer(text="SMH returned 999 percent.", action="chat")
+    llm = ScriptedLLM(in_scope=True, plans=[_sql_plan()], answers=[fabricated])
+    state = await _graph(llm, "ticker=SMH, cagr_10y=0.3579").ainvoke(
+        csa.initial_state("what is SMH's return?", ""), _CONFIG
+    )
+    assert state["grounded"] is False
+    assert state["answer"] is not None
+    assert state["answer"].text == csa.CANNOT_ANSWER_TEXT
+
+
 def test_plan_parser_accepts_bare_step_list() -> None:
     # qwen frequently returns the steps array directly instead of {"steps": [...]}.
     # The Plan before-validator must recover it, or the planner degrades to empty.

@@ -23,8 +23,7 @@ _VALID_DRAFT = csd.PortfolioDraft(
     name="AI Growth",
     initial_capital=100000,
     monthly_contribution=500,
-    core_fund_ticker="IWDA.AS",
-    core_weight=0.6,
+    cores=[{"ticker": "IWDA.AS", "weight": 0.6}],
     satellites=[
         {"ticker": "NVDA", "weight": 0.2},
         {"ticker": "UNH", "weight": 0.2},
@@ -72,10 +71,16 @@ async def _seed() -> None:
             name,
             kind,
         )
-    await conn.execute(
-        "INSERT INTO funds (ticker, name, ter) VALUES ('IWDA.AS', 'iShares Core MSCI World', 0.2) "
-        "ON CONFLICT (ticker) DO NOTHING"
-    )
+    for ticker, name in (
+        ("IWDA.AS", "iShares Core MSCI World"),
+        ("EIMI.AS", "iShares Core MSCI EM IMI"),
+    ):
+        await conn.execute(
+            "INSERT INTO funds (ticker, name, ter) VALUES ($1, $2, 0.2) "
+            "ON CONFLICT (ticker) DO NOTHING",
+            ticker,
+            name,
+        )
     await conn.close()
 
 
@@ -124,7 +129,7 @@ def test_propose_emits_draft_without_creating() -> None:
         assert answer_event["action"] == "propose"
         draft = answer_event["draft"]
         assert isinstance(draft, dict)
-        assert draft["core_fund_ticker"] == "IWDA.AS"
+        assert [c["ticker"] for c in draft["cores"]] == ["IWDA.AS"]
         assert {s["ticker"] for s in draft["satellites"]} == {"NVDA", "UNH"}
         assert not any(name == "created" for name, _ in events)
     finally:
@@ -139,8 +144,7 @@ def test_propose_normalizes_weights_that_do_not_sum_to_one() -> None:
         name="AI Growth",
         initial_capital=100000,
         monthly_contribution=500,
-        core_fund_ticker="IWDA.AS",
-        core_weight=0.7,
+        cores=[{"ticker": "IWDA.AS", "weight": 0.7}],
         satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "UNH", "weight": 0.2}],
     )
     answer = csd.Answer(text="Here is a portfolio.", action="propose", draft=bad)
@@ -151,7 +155,9 @@ def test_propose_normalizes_weights_that_do_not_sum_to_one() -> None:
         events = _events(response.text)
         draft = next(payload for name, payload in events if name == "answer")["draft"]
         assert isinstance(draft, dict)
-        total = float(draft["core_weight"]) + sum(float(s["weight"]) for s in draft["satellites"])
+        total = sum(float(c["weight"]) for c in draft["cores"]) + sum(
+            float(s["weight"]) for s in draft["satellites"]
+        )
         assert abs(total - 1.0) < 1e-6
     finally:
         client.__exit__(None, None, None)
@@ -165,8 +171,7 @@ def test_propose_resolves_a_core_ticker_missing_its_exchange_suffix() -> None:
         name="Suffix Fix",
         initial_capital=10000,
         monthly_contribution=0,
-        core_fund_ticker="IWDA",
-        core_weight=0.6,
+        cores=[{"ticker": "IWDA", "weight": 0.6}],
         satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "UNH", "weight": 0.2}],
     )
     answer = csd.Answer(text="Here is a portfolio.", action="propose", draft=draft)
@@ -178,7 +183,7 @@ def test_propose_resolves_a_core_ticker_missing_its_exchange_suffix() -> None:
         emitted = next(payload for name, payload in events if name == "answer")
         assert emitted["action"] == "propose"
         assert isinstance(emitted["draft"], dict)
-        assert emitted["draft"]["core_fund_ticker"] == "IWDA.AS"
+        assert [c["ticker"] for c in emitted["draft"]["cores"]] == ["IWDA.AS"]
     finally:
         client.__exit__(None, None, None)
 
@@ -189,8 +194,7 @@ def test_propose_with_unknown_core_falls_back_to_chat() -> None:
         name="Bad Core",
         initial_capital=10000,
         monthly_contribution=0,
-        core_fund_ticker="ZZZZ",
-        core_weight=1.0,
+        cores=[{"ticker": "ZZZZ", "weight": 1.0}],
         satellites=[],
     )
     answer = csd.Answer(text="Here.", action="propose", draft=draft)
@@ -214,8 +218,7 @@ def test_propose_with_all_satellites_unresolvable_falls_back_to_chat() -> None:
         name="Names Not Tickers",
         initial_capital=10000,
         monthly_contribution=0,
-        core_fund_ticker="IWDA.AS",
-        core_weight=0.35,
+        cores=[{"ticker": "IWDA.AS", "weight": 0.35}],
         satellites=[
             {"ticker": "ZZZZ", "weight": 0.35},
             {"ticker": "NONEXISTENT HOLDINGS CO", "weight": 0.30},
@@ -239,8 +242,7 @@ def test_propose_drops_one_unresolvable_satellite_with_a_note() -> None:
         name="One Bad Sat",
         initial_capital=10000,
         monthly_contribution=0,
-        core_fund_ticker="IWDA.AS",
-        core_weight=0.6,
+        cores=[{"ticker": "IWDA.AS", "weight": 0.6}],
         satellites=[{"ticker": "NVDA", "weight": 0.2}, {"ticker": "ZZZZ", "weight": 0.2}],
     )
     answer = csd.Answer(text="Here.", action="propose", draft=draft)
@@ -264,8 +266,7 @@ def test_propose_resolves_a_satellite_by_company_name() -> None:
         name="By Name",
         initial_capital=10000,
         monthly_contribution=0,
-        core_fund_ticker="IWDA.AS",
-        core_weight=0.6,
+        cores=[{"ticker": "IWDA.AS", "weight": 0.6}],
         satellites=[{"ticker": "NVIDIA", "weight": 0.2}, {"ticker": "UnitedHealth", "weight": 0.2}],
     )
     answer = csd.Answer(text="Here.", action="propose", draft=draft)
@@ -277,6 +278,41 @@ def test_propose_resolves_a_satellite_by_company_name() -> None:
         assert emitted["action"] == "propose"
         assert isinstance(emitted["draft"], dict)
         assert {s["ticker"] for s in emitted["draft"]["satellites"]} == {"NVDA", "UNH"}
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_propose_and_create_with_two_core_etfs() -> None:
+    # The user can ask for a multi-ETF core (e.g. SCHG + SCHD). Both cores must
+    # survive resolution into the proposal and both must land as core positions
+    # on create — not silently collapsed to the first.
+    two_cores = csd.PortfolioDraft(
+        name="Dual Core",
+        initial_capital=10000,
+        monthly_contribution=0,
+        cores=[{"ticker": "IWDA.AS", "weight": 0.4}, {"ticker": "EIMI.AS", "weight": 0.3}],
+        satellites=[{"ticker": "NVDA", "weight": 0.3}],
+    )
+    answer = csd.Answer(text="Here is a two-core portfolio.", action="propose", draft=two_cores)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        propose = client.post("/api/portfolio-draft/chat", json={"message": "SCHG and SCHD core"})
+        assert propose.status_code == 200, propose.text
+        draft = next(p for n, p in _events(propose.text) if n == "answer")["draft"]
+        assert isinstance(draft, dict)
+        assert {c["ticker"] for c in draft["cores"]} == {"IWDA.AS", "EIMI.AS"}
+
+        create = client.post(
+            "/api/portfolio-draft/chat",
+            json={
+                "message": "Yes, build this portfolio.",
+                "proposed_draft": draft,
+                "confirm": True,
+            },
+        )
+        assert create.status_code == 200, create.text
+        created = next(p for n, p in _events(create.text) if n == "created")
+        assert isinstance(created["portfolio_id"], int)
     finally:
         client.__exit__(None, None, None)
 

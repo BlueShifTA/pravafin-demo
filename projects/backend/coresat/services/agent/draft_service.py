@@ -47,14 +47,18 @@ def _render_context(history: list[csd.ChatTurn]) -> str:
 
 def _normalize_draft(draft: csd.PortfolioDraft) -> csd.PortfolioDraft:
     # A small model's proposed weights often miss summing to 1 (e.g. 1.06). Scale
-    # core + satellites so they sum to 1 before the user sees or builds the draft,
-    # so a good recommendation is never rejected by the create weight check.
-    total = draft.core_weight + sum(position.weight for position in draft.satellites)
+    # cores + satellites so they sum to 1 before the user sees or builds the
+    # draft, so a good recommendation is never rejected by the create weight check.
+    total = sum(core.weight for core in draft.cores) + sum(
+        position.weight for position in draft.satellites
+    )
     if total <= 0 or abs(total - 1.0) <= _WEIGHT_TOLERANCE:
         return draft
     return draft.model_copy(
         update={
-            "core_weight": draft.core_weight / total,
+            "cores": [
+                core.model_copy(update={"weight": core.weight / total}) for core in draft.cores
+            ],
             "satellites": [
                 position.model_copy(update={"weight": position.weight / total})
                 for position in draft.satellites
@@ -68,7 +72,7 @@ def _draft_to_spec(draft: csd.PortfolioDraft) -> csd.PortfolioCreate:
         name=draft.name,
         initial_capital=draft.initial_capital,
         monthly_contribution=draft.monthly_contribution,
-        core=[csd.CorePick(fund_ticker=draft.core_fund_ticker, weight=draft.core_weight)],
+        core=[csd.CorePick(fund_ticker=core.ticker, weight=core.weight) for core in draft.cores],
         satellites=[
             csd.SatellitePick(ticker=position.ticker, weight=position.weight, acquired_at=None)
             for position in draft.satellites
@@ -155,25 +159,34 @@ class DraftService:
     ) -> tuple[csd.PortfolioDraft | None, str | None]:
         # The model often names a ticker that is not exactly in the DB — a
         # dropped exchange suffix (CSPX for CSPX.L) or a stock as the core (HD).
-        # Resolve the core against funds and each satellite against instruments
+        # Resolve each core against funds and each satellite against instruments
         # (exact, else the same base plus an exchange suffix, else company name).
-        # Unresolved satellites are excluded with a note; if that leaves none —
-        # or the core cannot be resolved to a real fund — don't propose a broken
-        # draft (a lone core rescaled to 100% is not what the user asked for),
-        # fall back to chat with the reason.
+        # Unresolved satellites are excluded with a note; if EVERY core fails to
+        # resolve to a real fund — or resolving leaves no satellites the user
+        # asked for — don't propose a broken draft (a lone core rescaled to 100%
+        # is not what the user asked for), fall back to chat with the reason.
         async with self._engine.connect() as conn:
-            core = (
-                await conn.execute(
-                    text(
-                        "SELECT ticker FROM funds WHERE upper(ticker) = upper(:t) "
-                        "OR upper(ticker) LIKE upper(:t) || '.%' "
-                        "ORDER BY (upper(ticker) = upper(:t)) DESC LIMIT 1"
-                    ),
-                    {"t": draft.core_fund_ticker},
+            cores: list[csd.DraftPosition] = []
+            dropped_cores: list[str] = []
+            for core_pick in draft.cores:
+                resolved_core = (
+                    await conn.execute(
+                        text(
+                            "SELECT ticker FROM funds WHERE upper(ticker) = upper(:t) "
+                            "OR upper(ticker) LIKE upper(:t) || '.%' "
+                            "ORDER BY (upper(ticker) = upper(:t)) DESC LIMIT 1"
+                        ),
+                        {"t": core_pick.ticker},
+                    )
+                ).scalar()
+                if resolved_core is not None:
+                    cores.append(core_pick.model_copy(update={"ticker": resolved_core}))
+                else:
+                    dropped_cores.append(core_pick.ticker)
+            if not cores:
+                return None, (
+                    "no ETF in the database matches the core(s): " + ", ".join(dropped_cores)
                 )
-            ).scalar()
-            if core is None:
-                return None, f"no ETF in the database matches the core '{draft.core_fund_ticker}'"
             satellites: list[csd.DraftPosition] = []
             dropped: list[str] = []
             for position in draft.satellites:
@@ -199,22 +212,25 @@ class DraftService:
                 + ", ".join(dropped)
                 + " — please use exact tickers"
             )
+        dropped_all = dropped_cores + dropped
         note = (
-            "excluded holdings not found as tradable stocks: " + ", ".join(dropped)
-            if dropped
+            "excluded holdings not found in the database: " + ", ".join(dropped_all)
+            if dropped_all
             else None
         )
         return (
-            draft.model_copy(update={"core_fund_ticker": core, "satellites": satellites}),
+            draft.model_copy(update={"cores": cores, "satellites": satellites}),
             note,
         )
 
     async def _create(self, draft: csd.PortfolioDraft) -> AsyncIterator[str]:
-        total = draft.core_weight + sum(position.weight for position in draft.satellites)
+        total = sum(core.weight for core in draft.cores) + sum(
+            position.weight for position in draft.satellites
+        )
         if abs(total - 1.0) > _WEIGHT_TOLERANCE:
             yield _sse(
                 "error",
-                {"message": f"weights must sum to 1 (core + satellites = {total:.3f})"},
+                {"message": f"weights must sum to 1 (cores + satellites = {total:.3f})"},
             )
             return
         try:

@@ -128,10 +128,20 @@ def build_graph(
             if item.error is None
             for number in extract_numbers(item.content)
         }
+        # A portfolio proposal (action propose/create) is a design, not a report:
+        # its numbers — chosen weights, default capital/contribution, and blended
+        # figures the model computes from the picks (weighted TER, weighted CAGR)
+        # — are legitimately absent from the raw SQL evidence. The fabrication
+        # guard, which requires every figure to appear verbatim in evidence, is
+        # for factual Q&A (action chat) and must not gate a design. Tickers stay
+        # evidence-bound through the synthesiser prompt, not this guard.
+        is_design = answer.action in ("propose", "create")
         # An empty answer (e.g. the synthesiser's parse-failure fallback) is never
         # a valid grounded answer — treat it as ungrounded so it routes to the
         # rag fallback / honest refusal instead of streaming a blank bubble.
-        grounded = bool(answer.text.strip()) and numbers_grounded(answer.text, grounded_numbers)
+        grounded = bool(answer.text.strip()) and (
+            is_design or numbers_grounded(answer.text, grounded_numbers)
+        )
         problems: list[str] = []
         if not answer.text.strip():
             problems.append("the synthesiser produced no answer text")
