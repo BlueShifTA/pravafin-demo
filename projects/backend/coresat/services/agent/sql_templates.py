@@ -40,7 +40,7 @@ ETF_SECTOR_EXPOSURE = (
     "WHERE f.ticker = 'IWDA.AS' GROUP BY f.ticker, fh.sector ORDER BY weight DESC"
 )
 DISTINCT_STOCK_SECTORS = "SELECT DISTINCT sector FROM instruments WHERE type = 'stock'"
-LIST_DOCUMENTS = "SELECT DISTINCT source_doc FROM doc_chunks ORDER BY source_doc LIMIT 10"
+LIST_DOCUMENTS = "SELECT DISTINCT source_doc FROM doc_chunks ORDER BY source_doc"
 
 
 # (intent label shown to the planner, template SQL) — order = prompt order.
@@ -53,7 +53,10 @@ SQL_TEMPLATES: tuple[tuple[str, str], ...] = (
     ("stocks in a sector", STOCKS_IN_SECTOR),
     ("an ETF's sector breakdown", ETF_SECTOR_EXPOSURE),
     ("discover the distinct sectors", DISTINCT_STOCK_SECTORS),
-    ("list or count the documents in the knowledge base", LIST_DOCUMENTS),
+    (
+        "list or count knowledge-base documents (add LIMIT N only for a specific count)",
+        LIST_DOCUMENTS,
+    ),
 )
 
 
