@@ -459,7 +459,7 @@ export default function WizardPage() {
               gap: 2,
               mt: 3,
               justifyContent: "space-between",
-              ...(step === 0 ? { maxWidth: 480, mx: "auto" } : {}),
+              ...(step === 0 ? { maxWidth: 480, mx: "auto", justifyContent: "flex-start" } : {}),
             }}
           >
             <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
