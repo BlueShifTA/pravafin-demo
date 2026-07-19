@@ -91,7 +91,7 @@ export default function SatellitePage() {
 
   return (
     <PageShell
-      title="Satellite screener"
+      title="Stock screener"
       description="Greenblatt Magic Formula ranking. Select 2–4 rows to compare."
     >
       <Box sx={{ display: "grid", gap: 2 }}>

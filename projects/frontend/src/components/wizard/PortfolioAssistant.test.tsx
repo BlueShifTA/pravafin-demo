@@ -80,7 +80,7 @@ describe("PortfolioAssistant", () => {
     await waitFor(() => expect(screen.getByText("IWDA.AS")).toBeInTheDocument());
     expect(screen.getByText("NVDA")).toBeInTheDocument();
     expect(screen.getByText("UNH")).toBeInTheDocument();
-    expect(screen.getByText("Core weighted TER")).toBeInTheDocument();
+    expect(screen.getByText("ETF weighted TER")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /build it/i })).toBeInTheDocument();
   });
 

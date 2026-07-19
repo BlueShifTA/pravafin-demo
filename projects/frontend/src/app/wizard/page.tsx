@@ -38,7 +38,7 @@ import {
 } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
-const STEPS = ["Capital", "Core ETF", "Satellites", "Review"] as const;
+const STEPS = ["Capital", "ETF", "Stocks", "Review"] as const;
 const CORE_PAGE_SIZE = 12; // 4 columns x 3 rows
 
 export default function WizardPage() {
@@ -235,7 +235,7 @@ export default function WizardPage() {
                   />
                   <Box>
                     <Typography gutterBottom>
-                      Core weight: {formatPercent(coreWeight, 0)} (satellites{" "}
+                      ETF weight: {formatPercent(coreWeight, 0)} (stocks{" "}
                       {formatPercent(1 - coreWeight, 0)})
                     </Typography>
                     <Slider
@@ -276,7 +276,7 @@ export default function WizardPage() {
                 />
               </Stack>
               <Typography variant="body2" color="text.secondary">
-                Select one or more core ETFs — {formatPercent(coreWeight, 0)} splits across them (
+                Select one or more ETFs — {formatPercent(coreWeight, 0)} splits across them (
                 {coreFunds.length} selected).
               </Typography>
               <Box
@@ -343,7 +343,7 @@ export default function WizardPage() {
             <Card variant="outlined">
               <CardContent sx={{ display: "grid", gap: 2 }}>
                 <Typography color="text.secondary">
-                  Pick satellite stocks — same magic-formula screener as the Satellite tab.
+                  Pick stocks — same magic-formula screener as the Stock tab.
                 </Typography>
                 <AppTextField
                   label="Search stocks"
@@ -384,12 +384,9 @@ export default function WizardPage() {
                     gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                   }}
                 >
-                  <StatBox label="Core weighted TER" value={`${coreTer.toFixed(2)}%`} />
-                  <StatBox label="Core weighted 10y CAGR" value={formatPercent(coreCagr)} />
-                  <StatBox
-                    label="Satellite weighted 10y CAGR"
-                    value={formatPercent(satelliteCagr)}
-                  />
+                  <StatBox label="ETF weighted TER" value={`${coreTer.toFixed(2)}%`} />
+                  <StatBox label="ETF weighted 10y CAGR" value={formatPercent(coreCagr)} />
+                  <StatBox label="Stock weighted 10y CAGR" value={formatPercent(satelliteCagr)} />
                   <StatBox
                     label="Total allocation"
                     value={`${totalPct.toFixed(0)}%`}
@@ -400,7 +397,7 @@ export default function WizardPage() {
                 <Typography sx={{ fontWeight: 600 }}>Adjust proportions</Typography>
                 {coreFunds.map((ticker) => (
                   <Box key={ticker} sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Chip label="core" size="small" color="primary" />
+                    <Chip label="ETF" size="small" color="primary" />
                     <Typography sx={{ minWidth: 90, fontWeight: 600 }}>{ticker}</Typography>
                     <AppTextField
                       type="number"
@@ -415,7 +412,7 @@ export default function WizardPage() {
                 ))}
                 {satellites.map((ticker) => (
                   <Box key={ticker} sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Chip label="satellite" size="small" variant="outlined" />
+                    <Chip label="Stock" size="small" variant="outlined" />
                     <Typography sx={{ minWidth: 90, fontWeight: 600 }}>{ticker}</Typography>
                     <AppTextField
                       type="number"

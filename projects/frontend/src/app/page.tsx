@@ -25,6 +25,9 @@ import { usePortfolio } from "@/lib/portfolio-context";
 
 const currency = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
+// Sleeve kinds are stored as core/satellite but shown to the user as ETF/Stock.
+const KIND_LABEL: Record<string, string> = { core: "ETF", satellite: "Stock" };
+
 function StatCard({
   label,
   value,
@@ -218,20 +221,12 @@ function DashboardBody({ summary }: { summary: PortfolioSummary }) {
                     data: summary.allocation.map((slice, index) => ({
                       id: index,
                       value: slice.value,
-                      label: `${slice.label} (${slice.kind})`,
+                      label: `${slice.label} (${KIND_LABEL[slice.kind] ?? slice.kind})`,
                     })),
                     innerRadius: 50,
                   },
                 ]}
               />
-              <Stack spacing={0.5}>
-                {summary.drift.map((sleeve) => (
-                  <Typography key={sleeve.kind} variant="body2" color="text.secondary">
-                    {sleeve.kind}: {formatPercent(sleeve.actual_weight)} vs target{" "}
-                    {formatPercent(sleeve.target_weight, 0)} (drift {formatPercent(sleeve.drift)})
-                  </Typography>
-                ))}
-              </Stack>
             </CardContent>
           </Card>
         </Grid>

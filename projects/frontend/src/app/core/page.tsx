@@ -56,7 +56,7 @@ export default function CorePage() {
 
   return (
     <PageShell
-      title="Core sleeve — fund comparison"
+      title="ETF — fund comparison"
       description="Click a fund for its price chart and a 20-year TER-drag simulation on $10,000."
     >
       <Stack spacing={2}>

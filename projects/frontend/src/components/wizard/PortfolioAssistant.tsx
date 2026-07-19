@@ -67,9 +67,9 @@ function DraftCard({ draft }: { draft: PortfolioDraft }) {
             gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
           }}
         >
-          <StatBox label="Core weighted TER" value={`${coreTer.toFixed(2)}%`} />
-          <StatBox label="Core weighted 10y CAGR" value={formatPercent(coreCagr)} />
-          <StatBox label="Satellite weighted 10y CAGR" value={formatPercent(satelliteCagr)} />
+          <StatBox label="ETF weighted TER" value={`${coreTer.toFixed(2)}%`} />
+          <StatBox label="ETF weighted 10y CAGR" value={formatPercent(coreCagr)} />
+          <StatBox label="Stock weighted 10y CAGR" value={formatPercent(satelliteCagr)} />
           <StatBox
             label="Total allocation"
             value={`${totalPct.toFixed(0)}%`}
@@ -79,14 +79,14 @@ function DraftCard({ draft }: { draft: PortfolioDraft }) {
         <Divider />
         {draft.cores.map((core) => (
           <Box key={core.ticker} sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Chip label="core" size="small" color="primary" />
+            <Chip label="ETF" size="small" color="primary" />
             <Typography sx={{ minWidth: 72, fontWeight: 600 }}>{core.ticker}</Typography>
             <Typography color="text.secondary">{formatPercent(core.weight, 0)}</Typography>
           </Box>
         ))}
         {draft.satellites.map((position) => (
           <Box key={position.ticker} sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Chip label="satellite" size="small" variant="outlined" />
+            <Chip label="Stock" size="small" variant="outlined" />
             <Typography sx={{ minWidth: 72, fontWeight: 600 }}>{position.ticker}</Typography>
             <Typography color="text.secondary">{formatPercent(position.weight, 0)}</Typography>
           </Box>
@@ -177,8 +177,8 @@ export function PortfolioAssistant({ onCreated }: { onCreated: (portfolioId: num
         >
           {turns.length === 0 && (
             <Typography color="text.secondary">
-              Describe the portfolio you want — for example: &ldquo;60% core ETF in tech and
-              medical, 40% split across five high-upside stocks from different sectors.&rdquo;
+              Describe the portfolio you want — for example: &ldquo;60% ETF in tech and medical, 40%
+              split across five high-upside stocks from different sectors.&rdquo;
             </Typography>
           )}
           {turns.map((turn, index) => (

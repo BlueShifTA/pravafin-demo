@@ -35,8 +35,8 @@ const DRAWER_WIDTH = 200;
 
 const NAV_ITEMS = [
   { label: "Main", href: "/" },
-  { label: "Core", href: "/core" },
-  { label: "Satellite", href: "/satellite" },
+  { label: "ETF", href: "/core" },
+  { label: "Stock", href: "/satellite" },
   // hidden for the demo — pages still exist, re-enable by uncommenting
   // { label: "Indicators", href: "/indicators" },
   // { label: "Ingestion", href: "/ingestion" },
@@ -82,7 +82,7 @@ export function AppNav({ children }: PropsWithChildren) {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            CoreSat
+            DCA Investment Planner
           </Typography>
           <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 180 } }}>
             <InputLabel id="portfolio-select">Portfolio</InputLabel>
