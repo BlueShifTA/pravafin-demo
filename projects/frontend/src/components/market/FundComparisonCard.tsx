@@ -14,47 +14,43 @@ import {
 import { LineChart } from "@mui/x-charts";
 import { useState } from "react";
 
-import { Spinner } from "@/components/ui/feedback/Spinner";
 import type { FundRow } from "@/lib/generated/models";
-import { useCandlesApiMarketCandlesTickerGet } from "@/lib/generated/endpoints";
+import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format";
 
-const COMPARE_DAYS = 1825; // 5 years
+const CAPITAL = 10_000;
+const YEARS = 20;
+const HORIZON = Array.from({ length: YEARS + 1 }, (_, year) => year);
 
-function closeByDate(bars: { date: string; close: number }[] | null): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const bar of bars ?? []) map.set(bar.date, bar.close);
-  return map;
+// Net-of-fees growth rate: the fund's CAGR minus its TER (TER is stored as a
+// percent number, e.g. 0.2 -> 0.2%).
+function netRate(fund: FundRow | undefined): number {
+  return (fund?.cagr_10y ?? 0) - (fund?.ter ?? 0) / 100;
 }
 
-// Overlay two funds' price growth, each normalised to 100 at the first shared
-// date, so a fund's relative performance is comparable regardless of price.
+function grow(rate: number, year: number): number {
+  return CAPITAL * (1 + rate) ** year;
+}
+
+function FundStat({ fund }: { fund: FundRow }) {
+  const grossFinal = grow(fund.cagr_10y ?? 0, YEARS);
+  const netFinal = grow(netRate(fund), YEARS);
+  return (
+    <Typography variant="body2" color="text.secondary">
+      <b>{fund.ticker}</b> — growth {formatPercent(fund.cagr_10y)}/yr, TER {fund.ter ?? "n/a"}% →{" "}
+      {formatMoney(netFinal)} net after {YEARS}y (fees cost {formatMoney(grossFinal - netFinal)})
+    </Typography>
+  );
+}
+
+// Compare two funds by growth rate (CAGR) and TER: plot each fund's net-of-fees
+// growth of $10,000 over 20 years, so the fund that compounds more after fees wins.
 export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
   const [left, setLeft] = useState<string>("");
   const [right, setRight] = useState<string>("");
 
-  const leftQuery = useCandlesApiMarketCandlesTickerGet(
-    left,
-    { days: COMPARE_DAYS },
-    { query: { enabled: left !== "" } }
-  );
-  const rightQuery = useCandlesApiMarketCandlesTickerGet(
-    right,
-    { days: COMPARE_DAYS },
-    { query: { enabled: right !== "" } }
-  );
-  const leftBars = leftQuery.data?.status === 200 ? leftQuery.data.data : null;
-  const rightBars = rightQuery.data?.status === 200 ? rightQuery.data.data : null;
-
-  const leftMap = closeByDate(leftBars);
-  const rightMap = closeByDate(rightBars);
-  const dates = [...leftMap.keys()].filter((date) => rightMap.has(date)).sort();
-  const leftBase = dates.length ? (leftMap.get(dates[0]) ?? 0) : 0;
-  const rightBase = dates.length ? (rightMap.get(dates[0]) ?? 0) : 0;
-  const leftSeries = dates.map((date) => ((leftMap.get(date) ?? 0) / leftBase) * 100);
-  const rightSeries = dates.map((date) => ((rightMap.get(date) ?? 0) / rightBase) * 100);
-
-  const bothChosen = left !== "" && right !== "";
-  const loading = bothChosen && (leftQuery.isLoading || rightQuery.isLoading);
+  const fundA = funds.find((fund) => fund.ticker === left);
+  const fundB = funds.find((fund) => fund.ticker === right);
+  const bothChosen = fundA !== undefined && fundB !== undefined;
 
   return (
     <Card variant="outlined">
@@ -70,7 +66,7 @@ export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Compare two funds
+            Compare two funds (growth vs TER)
           </Typography>
           <Stack direction="row" spacing={1.5}>
             <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -106,25 +102,33 @@ export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
           </Stack>
         </Box>
         {!bothChosen ? (
-          <Typography color="text.secondary">Pick two funds to compare their growth.</Typography>
-        ) : loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-            <Spinner size={32} />
-          </Box>
-        ) : dates.length === 0 ? (
           <Typography color="text.secondary">
-            No overlapping price history for these funds.
+            Pick two funds to compare their growth rate and TER on $10,000.
           </Typography>
         ) : (
-          <LineChart
-            height={320}
-            xAxis={[{ data: dates, scaleType: "point", label: "date" }]}
-            yAxis={[{ label: "growth of 100" }]}
-            series={[
-              { data: leftSeries, label: left, showMark: false },
-              { data: rightSeries, label: right, showMark: false },
-            ]}
-          />
+          <>
+            <LineChart
+              height={300}
+              xAxis={[{ data: HORIZON, label: "years" }]}
+              yAxis={[{ valueFormatter: (value: number | null) => formatMoneyCompact(value) }]}
+              series={[
+                {
+                  data: HORIZON.map((year) => grow(netRate(fundA), year)),
+                  label: `${fundA.ticker} (net)`,
+                  showMark: false,
+                },
+                {
+                  data: HORIZON.map((year) => grow(netRate(fundB), year)),
+                  label: `${fundB.ticker} (net)`,
+                  showMark: false,
+                },
+              ]}
+            />
+            <Stack spacing={0.5} sx={{ mt: 1 }}>
+              <FundStat fund={fundA} />
+              <FundStat fund={fundB} />
+            </Stack>
+          </>
         )}
       </CardContent>
     </Card>
