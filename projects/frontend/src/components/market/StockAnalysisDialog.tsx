@@ -24,6 +24,7 @@ import { useEffect } from "react";
 
 import { useAnalyzeStockApiAnalysisStockPost } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
+import { Markdown } from "@/components/ui/Markdown";
 
 type StockAnalysisDialogProps = {
   ticker: string | null;
@@ -100,7 +101,7 @@ export function StockAnalysisDialog({ ticker, open, onClose }: StockAnalysisDial
               )}
             </Stack>
             <Box sx={{ borderLeft: 3, borderColor: "primary.main", pl: 2 }}>
-              <Typography>{result.summary}</Typography>
+              <Markdown>{result.summary}</Markdown>
             </Box>
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>

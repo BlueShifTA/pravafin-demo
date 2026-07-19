@@ -9,10 +9,12 @@ export interface FundRow {
   ticker: string;
   name: string;
   provider: string | null;
+  category: string | null;
   currency: string | null;
   fund_size: number | null;
   ter: number | null;
   dist_yield: number | null;
   cagr_5y: number | null;
   cagr_10y: number | null;
+  holdings_count: number;
 }

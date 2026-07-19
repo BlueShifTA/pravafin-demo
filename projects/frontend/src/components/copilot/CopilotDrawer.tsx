@@ -25,6 +25,7 @@ import type { ChatMessageOut } from "@/lib/generated/models";
 import { usePortfolio } from "@/lib/portfolio-context";
 import { AGENT_TIMEOUT_MS, agentStageLabel, readSseEvents } from "@/lib/sse";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
+import { Markdown } from "@/components/ui/Markdown";
 
 const DRAWER_WIDTH = { xs: "85vw", sm: 380 };
 
@@ -41,9 +42,13 @@ function MessageBubble({ message }: { message: ChatMessageOut }) {
           color: isUser ? "primary.contrastText" : "text.primary",
         }}
       >
-        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-          {message.content}
-        </Typography>
+        {isUser ? (
+          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+            {message.content}
+          </Typography>
+        ) : (
+          <Markdown>{message.content}</Markdown>
+        )}
       </Box>
       {message.citations.length > 0 && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>

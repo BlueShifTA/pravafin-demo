@@ -7,4 +7,5 @@
 
 export type CandlesApiMarketCandlesTickerGetParams = {
   days?: number | null;
+  interval?: string | null;
 };

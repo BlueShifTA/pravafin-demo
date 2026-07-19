@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Card,
@@ -12,9 +15,15 @@ import {
   MenuItem,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   Tooltip,
   Typography,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PsychologyIcon from "@mui/icons-material/Psychology";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef, GridRowSelectionModel } from "@mui/x-data-grid";
@@ -53,18 +62,20 @@ export default function SatellitePage() {
   const isLoading = screenerQuery.isLoading;
   const [selection, setSelection] = useState<string[]>([]);
   const [chartTicker, setChartTicker] = useState<string | null>(null);
+  const [chartDays, setChartDays] = useState<number>(365);
+  const [chartInterval, setChartInterval] = useState<string>("1D");
   const [compareOpen, setCompareOpen] = useState(false);
   const [analysisTicker, setAnalysisTicker] = useState<string | null>(null);
 
   const barsQuery = useCandlesApiMarketCandlesTickerGet(
     chartTicker ?? "",
-    { days: 365 },
+    { days: chartDays, interval: chartInterval },
     { query: { enabled: chartTicker !== null } }
   );
   const bars = barsQuery.data?.status === 200 ? barsQuery.data.data : null;
   const indicatorsQuery = useIndicatorsApiMarketIndicatorsTickerGet(
     chartTicker ?? "",
-    { days: 365 },
+    { days: chartDays },
     { query: { enabled: chartTicker !== null } }
   );
   const indicators = indicatorsQuery.data?.status === 200 ? indicatorsQuery.data.data : undefined;
@@ -118,7 +129,7 @@ export default function SatellitePage() {
       sortable: false,
       filterable: false,
       renderCell: (params) => (
-        <Tooltip title={`AI analysis of ${params.row.ticker}`}>
+        <Tooltip title={`Use AI to get detailed information on ${params.row.ticker}`}>
           <IconButton size="small" onClick={() => setAnalysisTicker(String(params.row.ticker))}>
             <PsychologyIcon fontSize="small" />
           </IconButton>
@@ -130,7 +141,7 @@ export default function SatellitePage() {
   return (
     <PageShell
       title="Satellite screener"
-      description="Magic formula computed on the fly (EY = EBIT/EV, ROIC = EBIT/(NWC+PPE)). Select 2–4 rows to compare."
+      description="Greenblatt Magic Formula ranking. Select 2–4 rows to compare."
     >
       <Box sx={{ display: "grid", gap: 2 }}>
         <Card variant="outlined">
@@ -185,13 +196,17 @@ export default function SatellitePage() {
                   </Select>
                 </FormControl>
               </Stack>
-              <Button
-                variant="contained"
-                disabled={selection.length < 2}
-                onClick={() => setCompareOpen(true)}
-              >
-                Compare selected ({selection.length})
-              </Button>
+              <Tooltip title="Select 2–4 rows to compare">
+                <span>
+                  <Button
+                    variant="contained"
+                    disabled={selection.length < 2}
+                    onClick={() => setCompareOpen(true)}
+                  >
+                    Compare selected ({selection.length})
+                  </Button>
+                </span>
+              </Tooltip>
             </Box>
             <DataGrid
               rows={rows}
@@ -217,10 +232,53 @@ export default function SatellitePage() {
         {chartTicker && bars && (
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                {chartTicker} — daily candles (1y)
-              </Typography>
-              <CandleChart bars={bars} indicators={indicators} />
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 1.5,
+                  mb: 1,
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  {chartTicker} — candles
+                </Typography>
+                <Stack direction="row" spacing={1.5}>
+                  <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <InputLabel id="chart-range">Range</InputLabel>
+                    <Select
+                      labelId="chart-range"
+                      label="Range"
+                      value={chartDays}
+                      onChange={(event) => setChartDays(Number(event.target.value))}
+                    >
+                      <MenuItem value={365}>1 year</MenuItem>
+                      <MenuItem value={730}>2 years</MenuItem>
+                      <MenuItem value={1825}>5 years</MenuItem>
+                      <MenuItem value={3650}>10 years</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <InputLabel id="chart-interval">Interval</InputLabel>
+                    <Select
+                      labelId="chart-interval"
+                      label="Interval"
+                      value={chartInterval}
+                      onChange={(event) => setChartInterval(String(event.target.value))}
+                    >
+                      <MenuItem value="1D">1 day</MenuItem>
+                      <MenuItem value="7D">7 days</MenuItem>
+                      <MenuItem value="1M">1 month</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Stack>
+              </Box>
+              <CandleChart
+                bars={bars}
+                indicators={chartInterval === "1D" ? indicators : undefined}
+              />
             </CardContent>
           </Card>
         )}
@@ -241,29 +299,90 @@ export default function SatellitePage() {
             </CardContent>
           </Card>
         )}
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-              How the magic formula works
+        <Accordion variant="outlined" disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Methodology — the Magic Formula
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Greenblatt&apos;s magic formula ranks every stock twice — once by earnings yield
-              (cheapness) and once by ROIC (quality) — then sums the two ranks. The lowest combined
-              rank wins: good businesses at fair prices. Ranks here are recomputed on every request
-              from ingested fundamentals.
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              The Magic Formula (Greenblatt, 2006) ranks each equity along two independent
+              dimensions — valuation and capital efficiency — and combines the ranks additively.
+              Every security is assigned an ordinal rank for its earnings yield (EY) and a second
+              ordinal rank for its return on invested capital (ROIC), each ordered so that higher
+              values receive lower (better) ranks. The two ranks are summed to yield the composite
+              score R = rank(EY) + rank(ROIC), which is then sorted in ascending order. A low
+              composite score identifies a profitable business available at a low price. All ranks
+              are recomputed on every request from the ingested fundamentals; no derived value is
+              persisted.
             </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Symbol</TableCell>
+                  <TableCell>Quantity</TableCell>
+                  <TableCell>Definition</TableCell>
+                  <TableCell>Formula</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell>EY</TableCell>
+                  <TableCell>Earnings yield</TableCell>
+                  <TableCell>
+                    Operating profit per unit of enterprise cost; measures cheapness.
+                  </TableCell>
+                  <TableCell>EBIT / EV</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>ROIC</TableCell>
+                  <TableCell>Return on invested capital</TableCell>
+                  <TableCell>
+                    Operating profit per unit of capital employed; measures quality.
+                  </TableCell>
+                  <TableCell>EBIT / (NWC + PPE)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>EBIT</TableCell>
+                  <TableCell>Earnings before interest and taxes</TableCell>
+                  <TableCell>Operating profit before financing and tax effects.</TableCell>
+                  <TableCell>—</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>EV</TableCell>
+                  <TableCell>Enterprise value</TableCell>
+                  <TableCell>Total cost to acquire the business, net of cash.</TableCell>
+                  <TableCell>Market cap + net debt</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>NWC</TableCell>
+                  <TableCell>Net working capital</TableCell>
+                  <TableCell>Short-term capital tied up in operations.</TableCell>
+                  <TableCell>Current assets − current liabilities</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>PPE</TableCell>
+                  <TableCell>Property, plant & equipment</TableCell>
+                  <TableCell>Net tangible fixed assets.</TableCell>
+                  <TableCell>—</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>R</TableCell>
+                  <TableCell>Composite rank</TableCell>
+                  <TableCell>
+                    Sum of the two ordinal ranks; sorted ascending, lower is better.
+                  </TableCell>
+                  <TableCell>rank(EY) + rank(ROIC)</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
               <Chip label="Rank ≤ 10 — strong candidate" size="small" color="success" />
               <Chip label="Rank ≤ 20 — worth a look" size="small" color="primary" />
-              <Chip
-                icon={<PsychologyIcon />}
-                label="grounded AI analysis"
-                size="small"
-                variant="outlined"
-              />
             </Stack>
-          </CardContent>
-        </Card>
+          </AccordionDetails>
+        </Accordion>
       </Box>
       <CompareDialog tickers={selection} open={compareOpen} onClose={() => setCompareOpen(false)} />
       <StockAnalysisDialog

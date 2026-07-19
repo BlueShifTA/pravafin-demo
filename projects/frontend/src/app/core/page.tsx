@@ -19,7 +19,7 @@ import { useState } from "react";
 
 import { PageShell } from "@/components/layout/PageShell";
 import { Spinner } from "@/components/ui/feedback/Spinner";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import {
   useFundsApiMarketFundsGet,
   useTerDragApiMarketTerDragGet,
@@ -80,6 +80,8 @@ export default function CorePage() {
                   <TableRow>
                     <TableCell>Ticker</TableCell>
                     <TableCell>Name</TableCell>
+                    <TableCell>Sector</TableCell>
+                    <TableCell align="right">Holdings</TableCell>
                     <TableCell align="right">TER %</TableCell>
                     <TableCell align="right">10y CAGR</TableCell>
                     <TableCell align="right">Fund size</TableCell>
@@ -96,6 +98,8 @@ export default function CorePage() {
                     >
                       <TableCell sx={{ fontWeight: 600 }}>{fund.ticker}</TableCell>
                       <TableCell>{fund.name}</TableCell>
+                      <TableCell>{fund.category ?? "n/a"}</TableCell>
+                      <TableCell align="right">{formatNumber(fund.holdings_count)}</TableCell>
                       <TableCell align="right">{fund.ter ?? "n/a"}</TableCell>
                       <TableCell align="right">{formatPercent(fund.cagr_10y)}</TableCell>
                       <TableCell align="right">

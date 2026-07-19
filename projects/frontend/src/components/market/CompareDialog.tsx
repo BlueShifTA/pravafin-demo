@@ -29,6 +29,7 @@ import { useEffect } from "react";
 
 import { useCompareApiComparePost } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
+import { Markdown } from "@/components/ui/Markdown";
 
 type CompareDialogProps = {
   tickers: string[];
@@ -106,7 +107,7 @@ export function CompareDialog({ tickers, open, onClose }: CompareDialogProps) {
             </Typography>
 
             <SectionHeading>Comparison Summary</SectionHeading>
-            <Typography sx={{ lineHeight: 1.8 }}>{result.summary}</Typography>
+            <Markdown>{result.summary}</Markdown>
 
             <SectionHeading>Pros &amp; Cons</SectionHeading>
             <Box
