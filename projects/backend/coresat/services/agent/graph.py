@@ -136,15 +136,36 @@ def build_graph(
         # for factual Q&A (action chat) and must not gate a design. Tickers stay
         # evidence-bound through the synthesiser prompt, not this guard.
         is_design = answer.action in ("propose", "create")
+        # A plan that ran retrieval steps but came back with only empty results,
+        # "(no rows)", or errors gathered no facts. A refusal built on that carries
+        # no figure, so the fabrication guard alone would wave it through — treat
+        # empty retrieval as ungrounded so the graph re-plans, then tries the
+        # document corpus, instead of shipping a first-pass "I cannot find it".
+        # An empty plan (greeting, "where did that number come from") ran no
+        # retrieval and is exempt: it legitimately answers from the conversation.
+        plan = state["plan"]
+        ran_retrieval = plan is not None and len(plan.steps) > 0
+        gathered_facts = any(
+            item.error is None and item.content.strip() not in ("", "(no rows)")
+            for item in state["evidence"]
+        )
+        retrieval_empty = ran_retrieval and not gathered_facts and not is_design
         # An empty answer (e.g. the synthesiser's parse-failure fallback) is never
         # a valid grounded answer — treat it as ungrounded so it routes to the
         # rag fallback / honest refusal instead of streaming a blank bubble.
-        grounded = bool(answer.text.strip()) and (
-            is_design or numbers_grounded(answer.text, grounded_numbers)
+        grounded = (
+            bool(answer.text.strip())
+            and not retrieval_empty
+            and (is_design or numbers_grounded(answer.text, grounded_numbers))
         )
         problems: list[str] = []
         if not answer.text.strip():
             problems.append("the synthesiser produced no answer text")
+        elif retrieval_empty:
+            problems.append(
+                "every retrieval step returned no rows or errored — no facts were "
+                "gathered to answer from"
+            )
         elif not grounded:
             problems.append("the answer quotes figures that appear in no gathered evidence")
         problems.extend(

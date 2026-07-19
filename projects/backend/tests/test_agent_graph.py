@@ -290,6 +290,87 @@ async def test_draft_agent_chat_answer_still_grounded() -> None:
     assert state["answer"].text == csa.CANNOT_ANSWER_TEXT
 
 
+class _NoRowsSqlTool:
+    # A syntactically fine SELECT that simply matches nothing: content is the
+    # "(no rows)" sentinel, error is None. This is the CSPX-ticker-mismatch shape
+    # — the query ran, gathered no facts, yet did not error.
+    async def run(self, step: csd.Step) -> csd.Evidence:
+        return csd.Evidence(step_id=step.id, source="run_sql", content="(no rows)", error=None)
+
+
+class _RefuseUntilRagLLM:
+    """Refuses while only empty SQL evidence is present, then answers from the
+    document once the rag fallback supplies a chunk. A refusal carries no figure,
+    so the number guard alone would wave it through — the empty-evidence gate is
+    what must force the retry."""
+
+    def __init__(self) -> None:
+        self.plan_calls: int = 0
+        self.replan_errors_seen: list[str | None] = []
+
+    async def classify_scope(self, query: str, context: str) -> tuple[csd.ScopeVerdict, csa.Usage]:
+        return csd.ScopeVerdict(in_scope=True), _USAGE
+
+    async def plan(
+        self, query: str, context: str, replan_error: str | None
+    ) -> tuple[csd.Plan, csa.Usage]:
+        self.replan_errors_seen.append(replan_error)
+        self.plan_calls += 1
+        return _sql_plan(), _USAGE
+
+    async def synthesise(
+        self, query: str, context: str, evidence: list[csd.Evidence]
+    ) -> tuple[csd.Answer, csa.Usage]:
+        rag = [item for item in evidence if item.source == "rag_search" and item.error is None]
+        if rag:
+            return (
+                csd.Answer(
+                    text="From the factsheet: the TER is 0.07%.", citations=["rag_search#1"]
+                ),
+                _USAGE,
+            )
+        return csd.Answer(text="I could not find that figure in the data you have."), _USAGE
+
+
+async def test_no_rows_sql_is_not_grounded_and_falls_back_to_rag() -> None:
+    # A run_sql that returns zero rows gathered no facts. A refusal built on it
+    # must NOT ship as grounded on the first pass — the graph must exhaust its
+    # retries and then consult the document corpus before finalising.
+    chunk = csd.RetrievedChunk(
+        source_doc="cspx.pdf", page=1, text="Total Expense Ratio 0.07%.", score=0.9
+    )
+    executor = csa.Executor(
+        {
+            csd.ToolName.RUN_SQL: _NoRowsSqlTool(),
+            csd.ToolName.RAG_SEARCH: csa.RagSearchTool(_FakeRetriever([chunk]), k=4),
+        }
+    )
+    llm = _RefuseUntilRagLLM()
+    state = await csa.build_graph(llm, executor).ainvoke(
+        csa.initial_state("what is CSPX's TER?", ""), _CONFIG
+    )
+    assert llm.plan_calls == csa.MAX_ATTEMPTS  # retried, not shipped on the first refusal
+    assert state["answer"] is not None
+    assert state["answer"].text.startswith("From the factsheet")
+    assert state["grounded"] is True
+    assert any(item.source == "rag_search" for item in state["evidence"])
+
+
+async def test_no_rows_without_corpus_refuses_after_retries_never_first_pass() -> None:
+    # Same empty-evidence shape but no rag tool: the graph must retry to the cap
+    # and give an honest refusal — never treat the first-pass "cannot find"
+    # refusal as a grounded answer and stop.
+    executor = csa.Executor({csd.ToolName.RUN_SQL: _NoRowsSqlTool()})
+    llm = _RefuseUntilRagLLM()
+    state = await csa.build_graph(llm, executor).ainvoke(
+        csa.initial_state("what is CSPX's TER?", ""), _CONFIG
+    )
+    assert llm.plan_calls == csa.MAX_ATTEMPTS
+    assert state["answer"] is not None
+    assert state["answer"].text == csa.CANNOT_ANSWER_TEXT
+    assert state["grounded"] is False
+
+
 def test_plan_parser_accepts_bare_step_list() -> None:
     # qwen frequently returns the steps array directly instead of {"steps": [...]}.
     # The Plan before-validator must recover it, or the planner degrades to empty.

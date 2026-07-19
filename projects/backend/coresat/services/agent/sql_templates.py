@@ -19,8 +19,12 @@ TOP_STOCKS_BY_MARKET_CAP = (
     "WHERE i.type = 'stock' ORDER BY f.market_cap DESC NULLS LAST LIMIT 5"
 )
 STOCKS_BY_TICKER = "SELECT ticker, name, sector FROM instruments WHERE ticker IN ('NVDA', 'AAPL')"
+# ETF tickers carry an exchange suffix in the tables (CSPX.L, IWDA.AS), but the
+# user names the bare root (CSPX, IWDA). Match both: exact for a suffixed input,
+# LIKE 'ROOT.%' for a bare one — so a bare ticker still finds its listing.
 FUND_BY_TICKER = (
-    "SELECT ticker, name, ter, fund_size, cagr_5y, cagr_10y FROM funds WHERE ticker = 'IWDA.AS'"
+    "SELECT ticker, name, ter, currency, fund_size, cagr_5y, cagr_10y FROM funds "
+    "WHERE ticker = 'CSPX' OR ticker LIKE 'CSPX.%'"
 )
 LIST_FUNDS = "SELECT ticker, name, ter, fund_size FROM funds ORDER BY fund_size DESC NULLS LAST"
 RANK_STOCKS_BY_FUNDAMENTAL = (
@@ -29,10 +33,16 @@ RANK_STOCKS_BY_FUNDAMENTAL = (
     "WHERE i.type = 'stock' AND f.free_cashflow > 0 "
     "ORDER BY f.roe DESC NULLS LAST LIMIT 10"
 )
+NORMALIZED_STOCK_SECTOR = "regexp_replace(lower(i.sector), '[^a-z0-9]', '', 'g')"
 STOCKS_IN_SECTOR = (
     "SELECT i.ticker, i.name, i.sector FROM instruments i "
-    "WHERE i.type = 'stock' AND (i.sector ILIKE '%tech%' OR i.sector ILIKE '%semi%') "
-    "LIMIT 10"
+    f"WHERE i.type = 'stock' AND ({NORMALIZED_STOCK_SECTOR} LIKE '%tech%' "
+    f"OR {NORMALIZED_STOCK_SECTOR} LIKE '%semi%') ORDER BY i.ticker LIMIT 10"
+)
+COUNT_STOCKS_IN_SECTOR = (
+    "SELECT COUNT(DISTINCT i.ticker) AS count FROM instruments i "
+    f"WHERE i.type = 'stock' AND ({NORMALIZED_STOCK_SECTOR} LIKE '%tech%' "
+    f"OR {NORMALIZED_STOCK_SECTOR} LIKE '%semi%')"
 )
 ETF_SECTOR_EXPOSURE = (
     "SELECT f.ticker, fh.sector, SUM(fh.weight) AS weight "
@@ -51,6 +61,7 @@ SQL_TEMPLATES: tuple[tuple[str, str], ...] = (
     ("list the available ETFs/funds", LIST_FUNDS),
     ("rank stock picks by fundamentals (upside)", RANK_STOCKS_BY_FUNDAMENTAL),
     ("stocks in a sector", STOCKS_IN_SECTOR),
+    ("count stocks in a sector", COUNT_STOCKS_IN_SECTOR),
     ("an ETF's sector breakdown", ETF_SECTOR_EXPOSURE),
     ("discover the distinct sectors", DISTINCT_STOCK_SECTORS),
     (
@@ -64,7 +75,8 @@ def templates_block() -> str:
     """Render the templates as a planner-prompt block."""
     lines = [
         "Known-good SQL patterns — copy the closest one and adapt only its"
-        " literals (tickers, LIMIT, sector text); never invent column names:"
+        " literals (tickers, LIMIT, sector text); preserve normalization"
+        " expressions and never invent column names:"
     ]
     for intent, sql in SQL_TEMPLATES:
         lines.append(f"- {intent}:\n    {sql}")

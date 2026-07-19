@@ -27,12 +27,17 @@ _MAX_ROWS = 50
 _STATEMENT_TIMEOUT_MS = 5000
 
 
-# The planner LLM (esp. a small/cheap model) drifts in three deterministic ways
+# The planner LLM (esp. a small/cheap model) drifts in four deterministic ways
 # a DB round-trip should not have to catch: it wraps SQL in ```sql fences, emits
 # two statements separated by ';' (asyncpg rejects multiple commands in one
-# prepared statement), and leaves placeholder tokens like '<TICKER>'. Clean the
-# first two and reject the third with a clear message the retry loop feeds back.
+# prepared statement), leaves placeholder tokens like '<TICKER>', and filters
+# the mixed-format instruments.sector values without normalizing them. Clean the
+# first two and reject the others with a clear message the retry loop feeds back.
 _PLACEHOLDER_RE = re.compile(r"<[A-Za-z0-9_ ]+>")
+_RAW_SECTOR_FILTER_RE = re.compile(
+    r"(?<![A-Za-z0-9_.])(?:i\.|instruments\.)?sector\s*(?:=|i?like\b)",
+    re.IGNORECASE,
+)
 
 
 def _prepare_sql(raw: str | None) -> tuple[str | None, str | None]:
@@ -51,6 +56,12 @@ def _prepare_sql(raw: str | None) -> tuple[str | None, str | None]:
         return None, "step carries no SQL"
     if _PLACEHOLDER_RE.search(sql):
         return None, "SQL still has placeholder tokens like '<TICKER>' — use real values"
+    if _RAW_SECTOR_FILTER_RE.search(sql):
+        return None, (
+            "instruments.sector filters must normalize spacing and case with "
+            "regexp_replace(lower(i.sector), '[^a-z0-9]', '', 'g'); group OR "
+            "predicates in parentheses"
+        )
     return sql, None
 
 

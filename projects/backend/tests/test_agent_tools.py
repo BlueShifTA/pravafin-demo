@@ -115,6 +115,51 @@ async def test_run_sql_returns_fact_rows(
     assert "Test Corp" in evidence.content
 
 
+async def test_run_sql_rejects_unnormalized_sector_filters(
+    seeded_portfolios: tuple[int, int], app_engine: AsyncEngine
+) -> None:
+    p1, _ = seeded_portfolios
+    tool = csa.RunSqlTool(engine=app_engine, portfolio_id=p1)
+
+    evidence = await tool.run(
+        _sql_step(
+            "SELECT COUNT(DISTINCT i.ticker) FROM instruments i "
+            "WHERE i.type = 'stock' AND i.sector LIKE '%tech%' OR i.sector LIKE '%semi%'"
+        )
+    )
+
+    assert evidence.error is not None
+    assert "normaliz" in evidence.error.lower()
+
+
+async def test_run_sql_normalized_sector_filter_matches_spacing_variants(
+    seeded_portfolios: tuple[int, int], app_engine: AsyncEngine
+) -> None:
+    p1, _ = seeded_portfolios
+    admin = await _admin_or_skip()
+    try:
+        await admin.execute(
+            "INSERT INTO instruments (ticker, name, type, sector) VALUES "
+            "('TSTHC', 'Canonical Health', 'stock', 'Health Care'), "
+            "('TSTHL', 'Legacy Health', 'stock', 'healthcare') "
+            "ON CONFLICT (ticker) DO UPDATE SET sector = excluded.sector"
+        )
+    finally:
+        await admin.close()
+    tool = csa.RunSqlTool(engine=app_engine, portfolio_id=p1)
+
+    evidence = await tool.run(
+        _sql_step(
+            "SELECT COUNT(*) AS count FROM instruments i WHERE i.ticker LIKE 'TSTH%' "
+            "AND regexp_replace(lower(i.sector), '[^a-z0-9]', '', 'g') "
+            "LIKE '%healthcare%'"
+        )
+    )
+
+    assert evidence.error is None
+    assert evidence.content == "count=2"
+
+
 async def test_run_sql_is_rls_scoped_to_own_portfolio(
     seeded_portfolios: tuple[int, int], app_engine: AsyncEngine
 ) -> None:

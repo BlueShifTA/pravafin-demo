@@ -51,10 +51,16 @@ Assign each sub-question exactly one tool:
   "Stock" when you speak to the user.
   Joins: positions.instrument_id = instruments.id (stocks),
   positions.fund_id = funds.id (ETFs), positions.sleeve_id = sleeves.id.
-  A NAMED fund's or stock's own return/CAGR/TER/price/fundamentals is run_sql
-  (e.g. SELECT ticker, name, cagr_10y, ter FROM funds WHERE ticker = 'SCHG'),
-  even when the user says "growth" or "return" — those columns live in funds
-  and fundamentals, never in get_projection.
+  instruments.sector contains mixed spacing and case. Every sector filter MUST
+  use regexp_replace(lower(i.sector), '[^a-z0-9]', '', 'g'). For technology,
+  group LIKE '%tech%' OR LIKE '%semi%' in parentheses; for health care, use
+  LIKE '%healthcare%'. Raw sector LIKE/ILIKE/= predicates are rejected.
+  A NAMED fund's or stock's own return/CAGR/TER/currency/price/fundamentals is
+  run_sql, even when the user says "growth" or "return" — those columns live in
+  funds and fundamentals, never in get_projection. ETF tickers in funds carry an
+  exchange suffix (CSPX.L, IWDA.AS) while the user names the bare root (CSPX);
+  match both roots and listings (e.g. SELECT ticker, name, cagr_10y, ter,
+  currency FROM funds WHERE ticker = 'SCHG' OR ticker LIKE 'SCHG.%').
 - "get_projection": ONLY the user's OWN portfolio value and growth — "what is
   MY portfolio worth", "my current value", "how will MY portfolio grow". It
   knows nothing about any individual fund or stock; never use it to answer a
@@ -159,10 +165,12 @@ sub-questions that need fresh data. One tool:
   fh.sector. fund_holdings.sector uses clean GICS names ('Information
   Technology', 'Health Care'). Stock picks by sector: instruments.sector is
   messy and mixed-case (e.g. 'tech', 'Information Technology', 'healthcare',
-  'Health Care', 'semiconductor') — match with ILIKE and OR, e.g.
-  (sector ILIKE '%tech%' OR sector ILIKE '%semi%'); when unsure, first run
-  SELECT DISTINCT sector FROM instruments. Rank picks on fundamentals (high
-  roe, low pe_trailing, positive free_cashflow) for "upside"; join
+  'Health Care', 'semiconductor') — every filter MUST use
+  regexp_replace(lower(i.sector), '[^a-z0-9]', '', 'g'). For technology,
+  group LIKE '%tech%' OR LIKE '%semi%' in parentheses; for health care, use
+  LIKE '%healthcare%'. Raw sector LIKE/ILIKE/= predicates are rejected. When
+  unsure, first run SELECT DISTINCT sector FROM instruments. Rank picks on
+  fundamentals (high roe, low pe_trailing, positive free_cashflow) for "upside"; join
   instruments i ON i.id = fundamentals.instrument_id. Never emit window
   functions (RANK/ROW_NUMBER) in a WHERE clause — use ORDER BY + LIMIT. Each
   run_sql is EXACTLY ONE SELECT — no ';', no second statement — and uses real
