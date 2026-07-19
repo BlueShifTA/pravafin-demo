@@ -61,6 +61,13 @@ docs/_build/
 !.env.example
 !.env.test
 
+# Dev screenshots at repo root (docs/screenshots/ stays tracked)
+/*.png
+
+# Internal — not shipped in the demo repo
+instruction/
+review/
+
 # Package manager lockfiles (pnpm uses pnpm-lock.yaml)
 package-lock.json
 yarn.lock
