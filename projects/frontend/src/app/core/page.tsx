@@ -4,6 +4,7 @@ import {
   Box,
   Card,
   CardContent,
+  Checkbox,
   Stack,
   Table,
   TableBody,
@@ -36,6 +37,16 @@ export default function CorePage() {
   const funds = fundsQuery.data?.status === 200 ? fundsQuery.data.data : [];
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  // up to two tickers picked from the table drive the growth-vs-TER comparison
+  const [compare, setCompare] = useState<string[]>([]);
+  const toggleCompare = (ticker: string) =>
+    setCompare((prev) =>
+      prev.includes(ticker)
+        ? prev.filter((item) => item !== ticker)
+        : prev.length < 2
+          ? [...prev, ticker]
+          : prev
+    );
   const dragQuery = useTerDragApiMarketTerDragGet(
     { fund: selected ?? "", capital: 10_000, years: 20 },
     { query: { enabled: selected !== null } }
@@ -80,6 +91,7 @@ export default function CorePage() {
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
+                    <TableCell padding="checkbox">Compare</TableCell>
                     <TableCell>Ticker</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell>Sector</TableCell>
@@ -97,6 +109,16 @@ export default function CorePage() {
                       onClick={() => setSelected(fund.ticker)}
                       sx={{ cursor: "pointer" }}
                     >
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          size="small"
+                          checked={compare.includes(fund.ticker)}
+                          disabled={compare.length >= 2 && !compare.includes(fund.ticker)}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => toggleCompare(fund.ticker)}
+                          inputProps={{ "aria-label": `Compare ${fund.ticker}` }}
+                        />
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{fund.ticker}</TableCell>
                       <TableCell>{fund.name}</TableCell>
                       <TableCell>{fund.category ?? "n/a"}</TableCell>
@@ -112,7 +134,7 @@ export default function CorePage() {
             </TableContainer>
           </CardContent>
         </Card>
-        <FundComparisonCard funds={funds} />
+        <FundComparisonCard funds={funds} selectedTickers={compare} />
         <CandleChartCard ticker={selected} />
         {dragQuery.isLoading && (
           <Card variant="outlined">

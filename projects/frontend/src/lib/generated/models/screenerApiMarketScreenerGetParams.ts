@@ -6,9 +6,5 @@
  */
 
 export type ScreenerApiMarketScreenerGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 500
-   */
-  limit?: number;
+  limit?: number | null;
 };

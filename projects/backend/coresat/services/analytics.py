@@ -573,7 +573,7 @@ class AnalyticsService:
                 for row in rows
             ]
 
-    async def screener(self, limit: int) -> list[csd.ScreenerRow]:
+    async def screener(self, limit: int | None) -> list[csd.ScreenerRow]:
         async with self._engine.connect() as conn:
             rows = await conn.execute(text(_SCREENER_SQL), {"limit": limit})
             return [csd.ScreenerRow(**row) for row in rows.mappings()]

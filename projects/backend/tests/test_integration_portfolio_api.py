@@ -30,18 +30,19 @@ async def _prepare() -> None:
     await conn.execute("DELETE FROM fund_holdings WHERE ticker LIKE 'TST%'")
     await conn.execute(
         "DELETE FROM fundamentals WHERE instrument_id IN "
-        "(SELECT id FROM instruments WHERE ticker LIKE 'TST%')"
+        "(SELECT id FROM instruments WHERE ticker LIKE 'TST%' OR ticker LIKE 'TAL%')"
     )
     await conn.execute(
         "DELETE FROM prices_daily WHERE instrument_id IN "
-        "(SELECT id FROM instruments WHERE ticker LIKE 'TST%')"
+        "(SELECT id FROM instruments WHERE ticker LIKE 'TST%' OR ticker LIKE 'TAL%')"
     )
     await conn.execute(
         "DELETE FROM positions WHERE instrument_id IN "
-        "(SELECT id FROM instruments WHERE ticker LIKE 'TST%') OR fund_id IN "
+        "(SELECT id FROM instruments WHERE ticker LIKE 'TST%' OR ticker LIKE 'TAL%') "
+        "OR fund_id IN "
         "(SELECT id FROM funds WHERE ticker LIKE 'TST%')"
     )
-    await conn.execute("DELETE FROM instruments WHERE ticker LIKE 'TST%'")
+    await conn.execute("DELETE FROM instruments WHERE ticker LIKE 'TST%' OR ticker LIKE 'TAL%'")
     await conn.execute("DELETE FROM funds WHERE ticker LIKE 'TST%'")
     stock = await conn.fetchval(
         "INSERT INTO instruments (ticker, name, type, sector) "
@@ -79,6 +80,21 @@ async def _prepare() -> None:
         "INSERT INTO fundamentals (instrument_id, market_cap, ebit, nwc, ppe_net, cash, "
         "total_debt, cagr_10y) VALUES ($1, 1000, 500, 100, 100, 50, 100, 0.15)",
         stock,
+    )
+    await conn.close()
+
+
+async def _seed_rankable_screener_stocks(count: int) -> None:
+    conn = await _connect_or_skip()
+    await conn.execute(
+        "WITH inserted AS ("
+        "INSERT INTO instruments (ticker, name, type, sector) "
+        "SELECT 'TAL' || lpad(n::text, 4, '0'), 'Test Available ' || n, "
+        "'stock', 'Information Technology' FROM generate_series(1, $1) AS series(n) "
+        "RETURNING id) "
+        "INSERT INTO fundamentals (instrument_id, market_cap, ebit, nwc, ppe_net, cash, "
+        "total_debt) SELECT id, 1000, 100, 100, 100, 50, 100 FROM inserted",
+        count,
     )
     await conn.close()
 
@@ -193,6 +209,20 @@ def test_screener_computes_magic_formula_on_the_fly(client: TestClient) -> None:
     assert tstp["earnings_yield"] == pytest.approx(500 / 1050, rel=1e-6)
     assert tstp["roic"] == pytest.approx(2.5, rel=1e-6)
     assert isinstance(tstp["magic_rank"], int)
+
+
+def test_screener_returns_every_rankable_stock_by_default(client: TestClient) -> None:
+    asyncio.run(_seed_rankable_screener_stocks(201))
+
+    response = client.get("/api/market/screener")
+
+    assert response.status_code == 200, response.text
+    tickers = {row["ticker"] for row in response.json()}
+    assert len({ticker for ticker in tickers if ticker.startswith("TAL")}) == 201
+
+    limited = client.get("/api/market/screener", params={"limit": 10})
+    assert limited.status_code == 200, limited.text
+    assert len(limited.json()) == 10
 
 
 def test_ter_drag_compares_gross_and_net(client: TestClient) -> None:

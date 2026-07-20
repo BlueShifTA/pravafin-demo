@@ -43,12 +43,9 @@ import {
   useScreenerApiMarketScreenerGet,
 } from "@/lib/generated/endpoints";
 
-const LIMITS = [10, 20, 30, 50, 100, 200] as const;
-
 export default function SatellitePage() {
-  const [limit, setLimit] = useState<number>(200);
   const [sector, setSector] = useState<string>("all");
-  const screenerQuery = useScreenerApiMarketScreenerGet({ limit });
+  const screenerQuery = useScreenerApiMarketScreenerGet();
   const screener = screenerQuery.data?.status === 200 ? screenerQuery.data.data : [];
   const sectors = [...new Set(screener.map((row) => row.sector).filter(Boolean))].sort();
   const rows = sector === "all" ? screener : screener.filter((row) => row.sector === sector);
@@ -127,21 +124,6 @@ export default function SatellitePage() {
                     {sectors.map((name) => (
                       <MenuItem key={name} value={name ?? ""}>
                         {name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 110 }}>
-                  <InputLabel id="limit-select">Stocks</InputLabel>
-                  <Select
-                    labelId="limit-select"
-                    label="Stocks"
-                    value={limit}
-                    onChange={(event) => setLimit(Number(event.target.value))}
-                  >
-                    {LIMITS.map((value) => (
-                      <MenuItem key={value} value={value}>
-                        {value}
                       </MenuItem>
                     ))}
                   </Select>

@@ -4,11 +4,6 @@ import {
   Box,
   Card,
   CardContent,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -17,7 +12,6 @@ import {
   Typography,
 } from "@mui/material";
 import { LineChart } from "@mui/x-charts";
-import { useState } from "react";
 
 import type { FundRow } from "@/lib/generated/models";
 import { formatMoney, formatPercent, moneyAxis } from "@/lib/format";
@@ -44,11 +38,16 @@ function feeStats(fund: FundRow) {
 }
 
 // Compare two funds by growth rate (CAGR) and TER: plot each fund's net-of-fees
-// growth of $10,000 over 20 years, so the fund that compounds more after fees wins.
-export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
-  const [left, setLeft] = useState<string>("");
-  const [right, setRight] = useState<string>("");
-
+// growth of $10,000 over 20 years, so the fund that compounds more after fees
+// wins. The two funds are picked in the table above (selectedTickers: [A, B]).
+export function FundComparisonCard({
+  funds,
+  selectedTickers,
+}: {
+  funds: FundRow[];
+  selectedTickers: string[];
+}) {
+  const [left, right] = selectedTickers;
   const fundA = funds.find((fund) => fund.ticker === left);
   const fundB = funds.find((fund) => fund.ticker === right);
   const bothChosen = fundA !== undefined && fundB !== undefined;
@@ -69,42 +68,15 @@ export function FundComparisonCard({ funds }: { funds: FundRow[] }) {
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Compare two funds (growth vs TER)
           </Typography>
-          <Stack direction="row" spacing={1.5}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel id="compare-left">Fund A</InputLabel>
-              <Select
-                labelId="compare-left"
-                label="Fund A"
-                value={left}
-                onChange={(event) => setLeft(String(event.target.value))}
-              >
-                {funds.map((fund) => (
-                  <MenuItem key={fund.ticker} value={fund.ticker}>
-                    {fund.ticker}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel id="compare-right">Fund B</InputLabel>
-              <Select
-                labelId="compare-right"
-                label="Fund B"
-                value={right}
-                onChange={(event) => setRight(String(event.target.value))}
-              >
-                {funds.map((fund) => (
-                  <MenuItem key={fund.ticker} value={fund.ticker}>
-                    {fund.ticker}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
+          {bothChosen && (
+            <Typography variant="body2" color="text.secondary">
+              {fundA.ticker} vs {fundB.ticker}
+            </Typography>
+          )}
         </Box>
         {!bothChosen ? (
           <Typography color="text.secondary">
-            Pick two funds to compare their growth rate and TER on $10,000.
+            Select two funds in the table above to compare their growth rate and TER on $10,000.
           </Typography>
         ) : (
           <>

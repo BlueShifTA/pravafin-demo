@@ -56,7 +56,7 @@ async def financials(ticker: str, request: Request) -> list[csd.YearlyFinancials
 @router.get("/screener")
 async def screener(
     request: Request,
-    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    limit: Annotated[int | None, Query(ge=1)] = None,
 ) -> list[csd.ScreenerRow]:
     return await _analytics(request).screener(limit)
 

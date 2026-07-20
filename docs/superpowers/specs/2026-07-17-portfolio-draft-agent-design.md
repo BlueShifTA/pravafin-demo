@@ -70,7 +70,7 @@ class Answer(...):               + action: Literal["chat","propose","create"] = 
 Copilot ignores the new fields (defaults). Draft agent's synthesiser prompt:
 
 - gather requirements conversationally; every ETF/stock pick must come from
-  run_sql evidence (sector exposure via fund_holdings ⨝ instruments.sector;
+  run_sql evidence (sector exposure via fund_holdings.sector;
   "high upside" via magic-formula screener columns);
 - when the draft is complete → `action: "propose"` + full draft + summary
   prose; ask the user to build or change;
