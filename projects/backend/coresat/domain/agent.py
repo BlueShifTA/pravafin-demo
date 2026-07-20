@@ -1,6 +1,6 @@
 """Typed models shared by the copilot LangGraph agent and the API layer.
 
-Ported from the LocalAI plan-mode agent (ARCHITECTURE.md §7 reuse map) and
+Ported from the LocalAI plan-mode agent (docs/ARCHITECTURE.md §7 reuse map) and
 adapted to CoreSat's tool surface: SQL facts and deterministic projections.
 """
 
