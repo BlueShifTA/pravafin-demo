@@ -7,7 +7,6 @@ import {
   Drawer,
   FormControl,
   IconButton,
-  InputLabel,
   List,
   ListItemButton,
   ListItemText,
@@ -111,12 +110,20 @@ export function AppNav({ children }: PropsWithChildren) {
             DCA planner
           </Typography>
           <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 180 } }}>
-            <InputLabel id="portfolio-select">Portfolio</InputLabel>
             <Select
-              labelId="portfolio-select"
-              label="Portfolio"
+              displayEmpty
+              aria-label="Portfolio"
               value={portfolioId ?? ""}
-              renderValue={(value) => portfolios.find((p) => p.id === value)?.name ?? ""}
+              renderValue={(value) => {
+                const name = portfolios.find((p) => p.id === value)?.name;
+                return (
+                  name ?? (
+                    <Box component="span" sx={{ opacity: 0.6 }}>
+                      Portfolio
+                    </Box>
+                  )
+                );
+              }}
               onChange={(event) => {
                 if (typeof event.target.value === "number") {
                   setPortfolioId(event.target.value);
