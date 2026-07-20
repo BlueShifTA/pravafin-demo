@@ -33,7 +33,12 @@ const CONFIRM_MESSAGE = "Yes, build this portfolio.";
 function DraftCard({ draft }: { draft: PortfolioDraft }) {
   const fundsQuery = useFundsApiMarketFundsGet();
   const funds = fundsQuery.data?.status === 200 ? fundsQuery.data.data : [];
-  const screenerQuery = useScreenerApiMarketScreenerGet({ limit: 200 });
+  // ponytail: the card looks up each holding's CAGR in the magic-formula
+  // screener, so the pool must cover every stock a satellite might be — not the
+  // top-200 leaderboard (a high-growth pick ranks well outside it and would show
+  // 0% CAGR). Stocks the screener filters out entirely (null earnings_yield /
+  // roic) still fall through to 0; a per-ticker facts endpoint would fix those.
+  const screenerQuery = useScreenerApiMarketScreenerGet({ limit: 1200 });
   const screener = screenerQuery.data?.status === 200 ? screenerQuery.data.data : [];
 
   const fundOf = (ticker: string) => funds.find((fund) => fund.ticker === ticker);
