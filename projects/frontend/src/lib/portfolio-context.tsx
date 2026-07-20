@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import type { PropsWithChildren } from "react";
 
 type PortfolioContextValue = {
@@ -10,35 +10,17 @@ type PortfolioContextValue = {
 
 const PortfolioContext = createContext<PortfolioContextValue | null>(null);
 
-const STORAGE_KEY = "coresat.portfolioId";
-
-export function PortfolioProvider({ children }: PropsWithChildren) {
-  const [portfolioId, setPortfolioId] = useState<number | null>(null);
-
-  // hydrate once from localStorage (client-only value, not data fetching);
-  // storage is absent in the vitest DOM — degrade to in-memory state
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) setPortfolioId(Number(stored));
-    } catch {
-      /* no storage available */
-    }
-  }, []);
+export function PortfolioProvider({
+  children,
+  initialPortfolioId = null,
+}: PropsWithChildren<{ initialPortfolioId?: number | null }>) {
+  // selection is intentionally ephemeral — every fresh visit starts with no
+  // portfolio selected, so we do not restore it from storage. initialPortfolioId
+  // is a test seam; production mounts this propless.
+  const [portfolioId, setPortfolioId] = useState<number | null>(initialPortfolioId);
 
   const value = useMemo<PortfolioContextValue>(
-    () => ({
-      portfolioId,
-      setPortfolioId: (id) => {
-        setPortfolioId(id);
-        try {
-          if (id === null) window.localStorage.removeItem(STORAGE_KEY);
-          else window.localStorage.setItem(STORAGE_KEY, String(id));
-        } catch {
-          /* no storage available */
-        }
-      },
-    }),
+    () => ({ portfolioId, setPortfolioId }),
     [portfolioId]
   );
 

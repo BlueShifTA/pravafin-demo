@@ -5,28 +5,14 @@ import { AppProviders } from "@/components/layout/AppProviders";
 import { PortfolioProvider } from "@/lib/portfolio-context";
 import { CopilotDrawer } from "@/components/copilot/CopilotDrawer";
 
-function renderDrawer() {
+function renderDrawer(initialPortfolioId: number | null = null) {
   return render(
     <AppProviders>
-      <PortfolioProvider>
+      <PortfolioProvider initialPortfolioId={initialPortfolioId}>
         <CopilotDrawer open onClose={() => undefined} />
       </PortfolioProvider>
     </AppProviders>
   );
-}
-
-// the vitest DOM ships no localStorage; the provider hydrates from it
-function stubStorage(entries: Record<string, string>) {
-  const store = new Map(Object.entries(entries));
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => void store.set(key, value),
-      removeItem: (key: string) => void store.delete(key),
-      clear: () => store.clear(),
-    },
-  });
 }
 
 describe("CopilotDrawer", () => {
@@ -36,13 +22,11 @@ describe("CopilotDrawer", () => {
   });
 
   it("asks to select a portfolio when none is chosen", () => {
-    stubStorage({});
     renderDrawer();
     expect(screen.getByText("Select a portfolio to start chatting.")).toBeInTheDocument();
   });
 
   it("renders the fetched chat history with token totals", async () => {
-    stubStorage({ "coresat.portfolioId": "7" });
     const history = [
       {
         id: 1,
@@ -72,7 +56,7 @@ describe("CopilotDrawer", () => {
         return new Response(JSON.stringify(history), { status: 200 });
       })
     );
-    renderDrawer();
+    renderDrawer(7);
     await waitFor(() =>
       expect(screen.getByText("You invested 5000 in total.")).toBeInTheDocument()
     );
@@ -94,7 +78,6 @@ describe("CopilotDrawer", () => {
   });
 
   it("shows a typing indicator while the agent is working", async () => {
-    stubStorage({ "coresat.portfolioId": "7" });
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_url: unknown, init?: RequestInit) => {
@@ -102,7 +85,7 @@ describe("CopilotDrawer", () => {
         return new Response(JSON.stringify([]), { status: 200 });
       })
     );
-    renderDrawer();
+    renderDrawer(7);
     const [input] = await screen.findAllByPlaceholderText("Ask about this portfolio…");
     fireEvent.change(input, { target: { value: "Hi" } });
     fireEvent.click(screen.getByLabelText("send message"));

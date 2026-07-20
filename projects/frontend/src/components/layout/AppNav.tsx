@@ -20,11 +20,12 @@ import {
   useTheme,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import MenuIcon from "@mui/icons-material/Menu";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PropsWithChildren } from "react";
 
 import { CopilotDrawer } from "@/components/copilot/CopilotDrawer";
@@ -32,6 +33,9 @@ import { useListPortfoliosApiPortfoliosGet } from "@/lib/generated/endpoints";
 import { usePortfolio } from "@/lib/portfolio-context";
 
 const DRAWER_WIDTH = 200;
+// frontend-only "delete": ids the user removed from the picker. The portfolio
+// still exists server-side (no delete API) — we just stop showing it here.
+const HIDDEN_KEY = "coresat.hiddenPortfolios";
 
 const NAV_ITEMS = [
   { label: "Main", href: "/" },
@@ -46,7 +50,29 @@ export function AppNav({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const { portfolioId, setPortfolioId } = usePortfolio();
   const portfoliosQuery = useListPortfoliosApiPortfoliosGet();
-  const portfolios = portfoliosQuery.data?.status === 200 ? portfoliosQuery.data.data : [];
+  const allPortfolios = portfoliosQuery.data?.status === 200 ? portfoliosQuery.data.data : [];
+  const [hiddenIds, setHiddenIds] = useState<number[]>([]);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(HIDDEN_KEY);
+      if (raw) setHiddenIds(JSON.parse(raw) as number[]);
+    } catch {
+      /* no storage available */
+    }
+  }, []);
+  const hidePortfolio = (id: number) => {
+    setHiddenIds((prev) => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      try {
+        window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
+      } catch {
+        /* no storage available */
+      }
+      return next;
+    });
+    if (portfolioId === id) setPortfolioId(null);
+  };
+  const portfolios = allPortfolios.filter((portfolio) => !hiddenIds.includes(portfolio.id));
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [desktopNavOpen, setDesktopNavOpen] = useState(true);
@@ -82,7 +108,7 @@ export function AppNav({ children }: PropsWithChildren) {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            DCA Investment Planner
+            DCA planner
           </Typography>
           <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 180 } }}>
             <InputLabel id="portfolio-select">Portfolio</InputLabel>
@@ -90,6 +116,7 @@ export function AppNav({ children }: PropsWithChildren) {
               labelId="portfolio-select"
               label="Portfolio"
               value={portfolioId ?? ""}
+              renderValue={(value) => portfolios.find((p) => p.id === value)?.name ?? ""}
               onChange={(event) => {
                 if (typeof event.target.value === "number") {
                   setPortfolioId(event.target.value);
@@ -97,8 +124,25 @@ export function AppNav({ children }: PropsWithChildren) {
               }}
             >
               {portfolios.map((portfolio) => (
-                <MenuItem key={portfolio.id} value={portfolio.id}>
+                <MenuItem
+                  key={portfolio.id}
+                  value={portfolio.id}
+                  sx={{ display: "flex", justifyContent: "space-between", gap: 1, pr: 0.5 }}
+                >
                   {portfolio.name}
+                  <Tooltip title="Remove from list">
+                    <IconButton
+                      edge="end"
+                      size="small"
+                      aria-label={`remove ${portfolio.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        hidePortfolio(portfolio.id);
+                      }}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </MenuItem>
               ))}
               <Divider />
@@ -108,10 +152,10 @@ export function AppNav({ children }: PropsWithChildren) {
               </MenuItem>
             </Select>
           </FormControl>
-          <Tooltip title="Copilot — grounded portfolio chat">
+          <Tooltip title="Assistant">
             <span>
               <IconButton
-                aria-label="copilot"
+                aria-label="assistant"
                 onClick={() => setCopilotOpen(true)}
                 sx={{ color: "inherit" }}
               >

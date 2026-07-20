@@ -12,8 +12,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "DCA Investment Planner",
-  description: "Dollar-cost-averaging investment planner with a grounded AI copilot.",
+  title: "DCA planner",
+  description: "Dollar-cost-averaging investment planner with a grounded AI assistant.",
 };
 
 export default function RootLayout({

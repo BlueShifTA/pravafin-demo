@@ -156,7 +156,7 @@ export function CopilotDrawer({ open, onClose }: { open: boolean; onClose: () =>
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Copilot
+            Assistant
           </Typography>
           <Tooltip title="Clear chat context">
             <span>
