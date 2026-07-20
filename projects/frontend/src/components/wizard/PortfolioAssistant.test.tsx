@@ -16,10 +16,6 @@ const DRAFT = {
 };
 
 const FUNDS = [{ ticker: "IWDA.AS", name: "iShares Core MSCI World", ter: 0.2, cagr_10y: 0.1 }];
-const SCREENER = [
-  { ticker: "NVDA", name: "NVIDIA", cagr_10y: 0.3 },
-  { ticker: "UNH", name: "UnitedHealth", cagr_10y: 0.12 },
-];
 
 function sse(...events: Array<{ event: string; data: unknown }>): Response {
   const body = events.map((e) => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`).join("");
@@ -33,15 +29,14 @@ function json(data: unknown): Response {
   });
 }
 
-// The DraftCard fetches market data (funds + screener) for its weighted stat
-// tiles, so the mock must route by URL — not by call order — or those requests
-// would consume the queued draft-chat responses.
+// The DraftCard fetches funds data for its weighted stat tiles, so the mock must
+// route by URL — not by call order — or that request would consume the queued
+// draft-chat responses.
 function mockFetch(draftResponses: Response[]) {
   const queued = [...draftResponses];
   return vi.fn(async (url: string | URL | Request) => {
     const target = String(url instanceof Request ? url.url : url);
     if (target.includes("/market/funds")) return json(FUNDS);
-    if (target.includes("/market/screener")) return json(SCREENER);
     return queued.shift() ?? sse();
   });
 }

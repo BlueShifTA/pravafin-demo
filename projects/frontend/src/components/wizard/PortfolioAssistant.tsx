@@ -15,10 +15,7 @@ import SendIcon from "@mui/icons-material/Send";
 import { useState } from "react";
 
 import type { ChatTurn, PortfolioDraft } from "@/lib/generated/models";
-import {
-  useFundsApiMarketFundsGet,
-  useScreenerApiMarketScreenerGet,
-} from "@/lib/generated/endpoints";
+import { useFundsApiMarketFundsGet } from "@/lib/generated/endpoints";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { AGENT_TIMEOUT_MS, agentStageLabel, readSseEvents } from "@/lib/sse";
 import { AppTextField } from "@/components/ui/fields/AppTextField";
@@ -33,16 +30,8 @@ const CONFIRM_MESSAGE = "Yes, build this portfolio.";
 function DraftCard({ draft }: { draft: PortfolioDraft }) {
   const fundsQuery = useFundsApiMarketFundsGet();
   const funds = fundsQuery.data?.status === 200 ? fundsQuery.data.data : [];
-  // ponytail: the card looks up each holding's CAGR in the magic-formula
-  // screener, so the pool must cover every stock a satellite might be — not the
-  // top-200 leaderboard (a high-growth pick ranks well outside it and would show
-  // 0% CAGR). Stocks the screener filters out entirely (null earnings_yield /
-  // roic) still fall through to 0; a per-ticker facts endpoint would fix those.
-  const screenerQuery = useScreenerApiMarketScreenerGet({ limit: 1200 });
-  const screener = screenerQuery.data?.status === 200 ? screenerQuery.data.data : [];
 
   const fundOf = (ticker: string) => funds.find((fund) => fund.ticker === ticker);
-  const satOf = (ticker: string) => screener.find((row) => row.ticker === ticker);
   const weighted = (holdings: PortfolioDraft["cores"], value: (t: string) => number) => {
     const denom = holdings.reduce((sum, h) => sum + h.weight, 0);
     return denom ? holdings.reduce((sum, h) => sum + h.weight * value(h.ticker), 0) / denom : 0;
@@ -50,11 +39,6 @@ function DraftCard({ draft }: { draft: PortfolioDraft }) {
 
   const coreTer = weighted(draft.cores, (t) => fundOf(t)?.ter ?? 0);
   const coreCagr = weighted(draft.cores, (t) => fundOf(t)?.cagr_10y ?? 0);
-  const satelliteCagr = weighted(draft.satellites, (t) => satOf(t)?.cagr_10y ?? 0);
-  const totalPct =
-    (draft.cores.reduce((sum, c) => sum + c.weight, 0) +
-      draft.satellites.reduce((sum, s) => sum + s.weight, 0)) *
-    100;
 
   return (
     <Card variant="outlined">
@@ -74,12 +58,6 @@ function DraftCard({ draft }: { draft: PortfolioDraft }) {
         >
           <StatBox label="ETF weighted TER" value={`${coreTer.toFixed(2)}%`} />
           <StatBox label="ETF weighted 10y CAGR" value={formatPercent(coreCagr)} />
-          <StatBox label="Stock weighted 10y CAGR" value={formatPercent(satelliteCagr)} />
-          <StatBox
-            label="Total allocation"
-            value={`${totalPct.toFixed(0)}%`}
-            accent={Math.abs(totalPct - 100) < 0.5 ? "success.main" : "warning.main"}
-          />
         </Box>
         <Divider />
         {draft.cores.map((core) => (
