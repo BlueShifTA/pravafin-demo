@@ -39,10 +39,20 @@ def _sse(event: str, payload: dict[str, object]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
 
-def _render_context(history: list[csd.ChatTurn]) -> str:
-    if not history:
-        return "(new conversation)"
-    return "\n".join(f"{turn.role}: {turn.content}" for turn in history)
+def _render_context(history: list[csd.ChatTurn], proposed_draft: csd.PortfolioDraft | None) -> str:
+    parts: list[str] = []
+    if history:
+        parts.append("\n".join(f"{turn.role}: {turn.content}" for turn in history))
+    if proposed_draft is not None:
+        # On a refinement turn the model must EDIT this draft, not rebuild one from
+        # scratch — without the concrete baseline a small model re-plans and
+        # re-picks holdings even when the user only changed one field.
+        parts.append(
+            "CURRENT DRAFT (the user is refining THIS proposal — copy every field and "
+            "holding below verbatim into your draft, changing only what the user's "
+            "latest message explicitly asks to change):\n" + proposed_draft.model_dump_json()
+        )
+    return "\n\n".join(parts) if parts else "(new conversation)"
 
 
 def _normalize_draft(draft: csd.PortfolioDraft) -> csd.PortfolioDraft:
@@ -106,7 +116,7 @@ class DraftService:
             async for chunk in self._create(proposed_draft):
                 yield chunk
             return
-        context = _render_context(history)
+        context = _render_context(history, proposed_draft)
         tools: dict[csd.ToolName, Tool] = {
             csd.ToolName.RUN_SQL: FactSqlTool(engine=self._engine),
             csd.ToolName.RAG_SEARCH: self._rag_tool,

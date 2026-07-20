@@ -286,6 +286,40 @@ def test_propose_resolves_a_satellite_by_company_name() -> None:
         client.__exit__(None, None, None)
 
 
+def test_refinement_turn_shows_the_model_the_current_draft() -> None:
+    # A refinement like "change the monthly contribution" must not make the model
+    # rebuild the portfolio from scratch and re-pick holdings. The draft being
+    # refined is injected into the model's context so it edits from that baseline
+    # instead of flying blind on the chat text alone.
+    captured: list[str] = []
+
+    class CapturingLLM(ScriptedAgentLLM):
+        async def plan(
+            self, query: str, context: str, replan_error: str | None
+        ) -> tuple[csd.Plan, csa.Usage]:
+            captured.append(context)
+            return await super().plan(query, context, replan_error)
+
+    answer = csd.Answer(text="Updated the contribution.", action="propose", draft=_VALID_DRAFT)
+    client = _client(CapturingLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat",
+            json={
+                "message": "change the monthly contribution to 500",
+                "proposed_draft": _VALID_DRAFT.model_dump(),
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert captured, "planner was never called"
+        context = " ".join(captured)
+        # the current holdings must be visible to the model on a refinement turn
+        assert "IWDA.AS" in context
+        assert "NVDA" in context
+    finally:
+        client.__exit__(None, None, None)
+
+
 def test_propose_resolves_an_etf_satellite() -> None:
     # A satellite sleeve may legitimately hold an ETF (thematic/defensive pick),
     # and a portfolio can be all-ETF. An ETF is a real tradable instrument, so it

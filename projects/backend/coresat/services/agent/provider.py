@@ -16,6 +16,13 @@ import coresat.core as csc
 # think mode spirals on strict-format prompts, and the grounded features need
 # plain JSON, not chains of thought.
 _OLLAMA_NUM_PREDICT = 3000
+# Ollama defaults num_ctx to 2048 — smaller than our system prompt + format
+# instructions + history + evidence + num_predict output combined, so it
+# silently truncates the oldest input (the injected draft, the SQL evidence)
+# and the model "forgets" what it was refining. Run at gemma's full 32k window
+# so the whole prompt survives. Costs more KV-cache VRAM; drop it if the GPU
+# can't hold 32k.
+_OLLAMA_NUM_CTX = 32768
 
 
 def model_name_for(provider: str, settings: csc.Settings) -> str:
@@ -31,6 +38,7 @@ def build_chat_model(provider: str, settings: csc.Settings) -> BaseChatModel:
             temperature=0,
             reasoning=False,
             num_predict=_OLLAMA_NUM_PREDICT,
+            num_ctx=_OLLAMA_NUM_CTX,
         )
     if provider == "openai":
         if not settings.openai_api_key:
