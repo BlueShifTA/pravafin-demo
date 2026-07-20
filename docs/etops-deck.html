@@ -39,7 +39,7 @@
   .title-rule{ width:88px; height:6px; border-radius:3px; background:#fff; margin:36px 0 30px; }
   .slide-title .role{ font-size:26px; font-weight:600; }
   .slide-title .role span{ color:#D9C7FF; font-weight:400; }
-  .slide-title .who{ position:absolute; bottom:52px; left:72px; font-size:15px; color:rgba(255,255,255,.6); letter-spacing:.03em; }
+  .slide-title .who{ margin-top:16px; font-size:20px; color:rgba(255,255,255,.72); letter-spacing:.03em; }
 
   /* ── chrome ── */
   .watermark{ position:absolute; top:34px; right:44px; width:104px; aspect-ratio:182/57; opacity:.9; pointer-events:none; }
@@ -51,14 +51,12 @@
   h2.section .v{ color:var(--violet); }
 
   /* ── pillars (big, few words) ── */
-  .pillars{ display:flex; gap:26px; flex:1; margin-top:34px; }
-  .pillar{ flex:1; background:#fff; border:1px solid var(--rule); border-top:5px solid var(--violet); border-radius:18px; padding:32px 30px; box-shadow:0 8px 24px rgba(42,22,86,.07); display:flex; flex-direction:column; }
-  .pillar .ico{ width:56px; height:56px; border-radius:15px; background:var(--lav); color:var(--violet); display:grid; place-items:center; margin-bottom:20px; }
-  .pillar .ico svg{ width:30px; height:30px; }
-  .pillar h3{ font-size:26px; font-weight:700; margin-bottom:18px; letter-spacing:-.01em; }
-  .pillar ul{ list-style:none; }
-  .pillar li{ font-size:19px; font-weight:500; line-height:1.35; padding:9px 0 9px 22px; position:relative; }
-  .pillar li::before{ content:""; position:absolute; left:2px; top:16px; width:8px; height:8px; border-radius:50%; background:var(--violet-2); }
+  .pillars{ display:flex; flex-direction:column; gap:18px; flex:1; margin-top:28px; }
+  .pillar{ flex:1; background:#fff; border:1px solid var(--rule); border-left:6px solid var(--violet); border-radius:16px; padding:18px 40px; box-shadow:0 8px 24px rgba(42,22,86,.07); display:flex; flex-direction:row; align-items:center; gap:36px; }
+  .pillar h3{ width:200px; flex-shrink:0; font-size:25px; font-weight:700; margin-bottom:0; letter-spacing:-.01em; }
+  .pillar ul{ list-style:none; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .pillar li{ font-size:19px; font-weight:500; line-height:1.3; padding:7px 0 7px 22px; position:relative; }
+  .pillar li::before{ content:""; position:absolute; left:2px; top:14px; width:8px; height:8px; border-radius:50%; background:var(--violet-2); }
   .pillar li small{ display:block; font-size:14.5px; font-weight:400; color:var(--muted); margin-top:1px; }
 
   /* ── single stacked box (read top → down) ── */
@@ -89,6 +87,9 @@
     .slide,.slide-title{ margin:0!important; box-shadow:none!important; width:1280px!important; height:720px!important;
       page-break-after:always; break-after:page; page-break-inside:avoid; break-inside:avoid; overflow:hidden!important; }
     .slide:last-of-type,.slide-title:last-of-type{ page-break-after:auto; break-after:auto; }
+    /* drop rasterised soft-shadows + invisible white gradient: keeps PDF pure-vector */
+    .slide{ background:#fff!important; }
+    .pillar,.onebox{ box-shadow:none!important; }
   }
 </style>
 </head>
@@ -127,23 +128,22 @@
 <!-- ══ SLIDE 1 · TITLE ══ -->
 <div class="slide-title">
   <svg class="title-logo" aria-label="etops"><use href="#etops-w"/></svg>
-  <div class="kicker-hero">Portfolio · Grounded AI</div>
-  <h1><span class="thin">Demo —</span><br>DCA Investment Planner</h1>
+  <div class="kicker-hero">Demo</div>
+  <h1>DCA Investment Planner</h1>
   <div class="title-rule"></div>
   <div class="role">Senior Data Engineer <span>· Etops</span></div>
-  <div class="who">Surapat Ek-In · CoreSat demo</div>
+  <div class="who">Surapat Ek-In, PhD</div>
 </div>
 
 <!-- ══ SLIDE 2 · GOAL / DATA / STACK ══ -->
 <div class="slide">
   <svg class="watermark" aria-hidden="true"><use href="#etops-v"/></svg>
   <div class="slidenum">02 / 05</div>
-  <div class="kicker">01 · Overview</div>
-  <h2 class="section">Goal, <span class="v">data</span> &amp; stack</h2>
+  <h2 class="section">Overview</h2>
   <div class="onebox">
     <div class="orow">
       <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.7" fill="currentColor"/></svg></span>Goal</div>
-      <div class="val">Provide a DCA investment plan <span class="m">and projected future growth.</span></div>
+      <div class="val">Provide a DCA investment plan and projected future growth.</div>
     </div>
     <div class="orow">
       <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg></span>Data</div>
@@ -153,7 +153,7 @@
       <div class="lbl"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>Stack</div>
       <div class="val">
         <div class="stackgrid">
-          <div class="sg"><b>Backend</b><span>Python · FastAPI</span></div>
+          <div class="sg"><b>Backend</b><span>Python · LangChain/LangGraph · FastAPI</span></div>
           <div class="sg"><b>Database</b><span>PostgreSQL · pgvector</span></div>
           <div class="sg"><b>LLM</b><span>Gemma4:E4B</span></div>
           <div class="sg"><b>Frontend</b><span>React · TypeScript · MUI</span></div>
@@ -161,7 +161,6 @@
       </div>
     </div>
   </div>
-  <div class="footmark">Demo — DCA Investment Planner</div>
 </div>
 
 <!-- ══ SLIDE 3 · ARCHITECTURE ══ -->
@@ -169,9 +168,7 @@
   <svg class="watermark" aria-hidden="true"><use href="#etops-v"/></svg>
   <div class="slidenum">03 / 05</div>
   <div class="dhead">
-    <div class="kicker" style="margin:0;">02 · Architecture</div>
-    <h2>System <span class="v">architecture</span></h2>
-    <div class="tail">Next.js → FastAPI → one PostgreSQL · RLS isolation</div>
+    <h2>Architecture</h2>
   </div>
   <div class="diagram-full">
     <svg viewBox="0 0 1200 588" preserveAspectRatio="xMidYMid meet" role="img" aria-label="System architecture">
@@ -184,48 +181,53 @@
       <!-- ingestion band -->
       <rect x="0" y="0" width="1200" height="132" rx="16" fill="#F5F2FF" stroke="#E3DBF9"/>
       <text x="26" y="30" font-size="16" font-weight="700" fill="#8B48FF" letter-spacing="1.5">INGESTION PIPELINE</text>
+      <text x="240" y="30" font-size="14" font-weight="500" fill="#8A6BFB">· via ingest script</text>
       <g text-anchor="middle">
-        <rect x="26" y="46" width="250" height="66" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="151" y="80" font-size="19" font-weight="600" fill="#241B38">Sources</text><text x="151" y="100" font-size="13.5" fill="#6B6580">CSV · API · PDF · JSON</text>
-        <rect x="316" y="46" width="250" height="66" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="441" y="80" font-size="19" font-weight="600" fill="#241B38">Contract check</text><text x="441" y="100" font-size="13.5" fill="#6B6580">pydantic · quarantine</text>
-        <rect x="606" y="46" width="250" height="66" rx="12" fill="#E4F6F1" stroke="#A7DFD4"/><text x="731" y="80" font-size="19" font-weight="600" fill="#12897B">Router</text><text x="731" y="100" font-size="13.5" fill="#4E9E93">fact vs portfolio</text>
-        <rect x="896" y="46" width="278" height="66" rx="12" fill="#F1ECFD" stroke="#CDBAF6"/><text x="1035" y="80" font-size="19" font-weight="600" fill="#7A45D6">ingest_runs</text><text x="1035" y="100" font-size="13.5" fill="#8A6BFB">lineage · idempotent</text>
+        <rect x="26" y="42" width="250" height="78" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="151" y="70" font-size="19" font-weight="600" fill="#241B38">Sources</text><text x="151" y="90" font-size="13.5" fill="#6B6580">CSV · yfinance</text><text x="151" y="107" font-size="13.5" fill="#6B6580">PDF · SEC filing</text>
+        <rect x="316" y="42" width="250" height="78" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="441" y="70" font-size="19" font-weight="600" fill="#241B38">Contract check</text><text x="441" y="90" font-size="13.5" fill="#6B6580">&amp; validation</text><text x="441" y="107" font-size="13.5" fill="#6B6580">pydantic · quarantine</text>
+        <rect x="606" y="42" width="250" height="78" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="731" y="70" font-size="19" font-weight="600" fill="#241B38">Transform</text><text x="731" y="90" font-size="13.5" fill="#6B6580">computed properties</text><text x="731" y="107" font-size="13.5" fill="#6B6580">embedding · chunking</text>
+        <rect x="896" y="42" width="278" height="78" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="1035" y="88" font-size="19" font-weight="600" fill="#241B38">Route to database</text>
       </g>
       <g stroke="#8B7FA8" stroke-width="1.8" marker-end="url(#ar)">
-        <line x1="276" y1="79" x2="314" y2="79"/><line x1="566" y1="79" x2="604" y2="79"/><line x1="856" y1="79" x2="894" y2="79"/>
+        <line x1="276" y1="81" x2="314" y2="81"/><line x1="566" y1="81" x2="604" y2="81"/><line x1="856" y1="81" x2="894" y2="81"/>
       </g>
 
       <!-- BROWSER -->
       <rect x="0" y="196" width="322" height="360" rx="18" fill="#fff" stroke="#E3DBF9" stroke-width="1.5"/>
       <text x="161" y="238" text-anchor="middle" font-size="24" font-weight="700" fill="#241B38">Browser</text>
       <text x="161" y="262" text-anchor="middle" font-size="15" fill="#6B6580">Next.js · React · TypeScript</text>
-      <rect x="26" y="288" width="270" height="76" rx="13" fill="#F0EFFD" stroke="#D9CEF3"/><text x="161" y="325" text-anchor="middle" font-size="18" font-weight="600" fill="#3A1D7A">Wizard · Dashboard</text><text x="161" y="347" text-anchor="middle" font-size="14" fill="#8A6BFB">MUI · React Query</text>
-      <rect x="26" y="384" width="270" height="76" rx="13" fill="#F0EFFD" stroke="#D9CEF3"/><text x="161" y="421" text-anchor="middle" font-size="18" font-weight="600" fill="#3A1D7A">Copilot drawer</text><text x="161" y="443" text-anchor="middle" font-size="14" fill="#8A6BFB">SSE stream</text>
+      <rect x="26" y="288" width="270" height="76" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="161" y="325" text-anchor="middle" font-size="18" font-weight="600" fill="#241B38">Dashboard</text><text x="161" y="347" text-anchor="middle" font-size="14" fill="#6B6580">MUI · React Query</text>
+      <rect x="26" y="384" width="270" height="76" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="161" y="421" text-anchor="middle" font-size="18" font-weight="600" fill="#241B38">Assistant</text><text x="161" y="443" text-anchor="middle" font-size="14" fill="#6B6580">SSE stream</text>
       <text x="161" y="512" text-anchor="middle" font-size="14" fill="#A99CC7">typed client — OpenAPI → Orval</text>
 
       <!-- FASTAPI -->
       <rect x="392" y="168" width="470" height="388" rx="18" fill="#FBFAFF" stroke="#D9CEF3" stroke-width="1.5"/>
-      <text x="627" y="206" text-anchor="middle" font-size="24" font-weight="700" fill="#3A1D7A">FastAPI backend</text>
-      <rect x="416" y="224" width="422" height="48" rx="12" fill="#EDE7FB" stroke="#CDBAF6"/><text x="627" y="254" text-anchor="middle" font-size="16" font-weight="600" fill="#5B2BC9">Middleware · SET app.portfolio_id (RLS)</text>
+      <text x="627" y="206" text-anchor="middle" font-size="24" font-weight="700" fill="#241B38">FastAPI backend</text>
+      <rect x="416" y="224" width="422" height="48" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="627" y="254" text-anchor="middle" font-size="16" font-weight="600" fill="#241B38">Middleware · SET app.portfolio_id (RLS)</text>
       <g text-anchor="middle">
-        <rect x="416" y="286" width="132" height="96" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="482" y="330" font-size="18" font-weight="600" fill="#241B38">Ingestion</text><text x="482" y="352" font-size="13.5" fill="#6B6580">adapters</text>
-        <rect x="561" y="286" width="132" height="96" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="627" y="330" font-size="18" font-weight="600" fill="#241B38">Analytics</text><text x="627" y="352" font-size="13.5" fill="#6B6580">projection·risk</text>
-        <rect x="706" y="286" width="132" height="96" rx="13" fill="#F1ECFD" stroke="#CDBAF6"/><text x="772" y="330" font-size="18" font-weight="600" fill="#7A45D6">Agents</text><text x="772" y="352" font-size="13.5" fill="#8A6BFB">copilot·draft</text>
+        <rect x="416" y="288" width="200" height="86" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="516" y="328" font-size="18" font-weight="600" fill="#241B38">Analytics</text><text x="516" y="350" font-size="13.5" fill="#6B6580">projection · risk</text>
+        <rect x="638" y="288" width="200" height="86" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="738" y="328" font-size="18" font-weight="600" fill="#241B38">Agents</text><text x="738" y="350" font-size="13.5" fill="#6B6580">copilot · draft</text>
       </g>
-      <rect x="416" y="398" width="422" height="66" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="627" y="428" text-anchor="middle" font-size="16" font-weight="600" fill="#241B38">routers → services → domain</text><text x="627" y="450" text-anchor="middle" font-size="13.5" fill="#6B6580">REST + SSE · llm_audit_log (tokens · cost)</text>
-      <rect x="596" y="486" width="242" height="46" rx="12" fill="#F1ECFD" stroke="#CDBAF6"/><text x="717" y="515" text-anchor="middle" font-size="16" font-weight="600" fill="#7A45D6">LLM · Ollama (Gemma4:E4B)</text>
+      <rect x="416" y="390" width="422" height="50" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="627" y="415" text-anchor="middle" font-size="16" font-weight="600" fill="#241B38">Logging &amp; monitoring</text><text x="627" y="433" text-anchor="middle" font-size="13.5" fill="#6B6580">llm_audit_log · tokens · cost</text>
+      <text x="416" y="462" font-size="13" font-weight="700" fill="#8B48FF" letter-spacing="1">MODELS</text>
+      <g text-anchor="middle">
+        <rect x="416" y="470" width="132" height="74" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="482" y="496" font-size="15" font-weight="700" fill="#241B38">Generation</text><text x="482" y="516" font-size="12" fill="#6B6580">Gemma4:E4B</text><text x="482" y="533" font-size="11" fill="#9A93AD">Ollama · main</text>
+        <rect x="561" y="470" width="132" height="74" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="627" y="496" font-size="15" font-weight="700" fill="#241B38">Embedding</text><text x="627" y="516" font-size="12" fill="#6B6580">nomic-embed-text</text><text x="627" y="533" font-size="11" fill="#9A93AD">Ollama · 768-d</text>
+        <rect x="706" y="470" width="132" height="74" rx="12" fill="#fff" stroke="#D9CEF3"/><text x="772" y="496" font-size="15" font-weight="700" fill="#241B38">Reranker</text><text x="772" y="516" font-size="12" fill="#6B6580">cross-encoder</text><text x="772" y="533" font-size="11" fill="#9A93AD">MiniLM-L-6-v2</text>
+      </g>
 
       <!-- POSTGRES -->
-      <rect x="932" y="168" width="268" height="388" rx="18" fill="#F4FBF9" stroke="#A7DFD4" stroke-width="1.5"/>
-      <text x="1066" y="206" text-anchor="middle" font-size="22" font-weight="700" fill="#12897B">PostgreSQL 16</text>
-      <text x="1066" y="228" text-anchor="middle" font-size="15" fill="#4E9E93">+ pgvector</text>
-      <rect x="954" y="248" width="224" height="82" rx="13" fill="#fff" stroke="#A7DFD4"/><text x="1066" y="282" text-anchor="middle" font-size="17" font-weight="600" fill="#12897B">fact tables</text><text x="1066" y="304" text-anchor="middle" font-size="13.5" fill="#4E9E93">shared · read-all</text>
-      <rect x="954" y="342" width="224" height="82" rx="13" fill="#fff" stroke="#CDBAF6"/><text x="1066" y="376" text-anchor="middle" font-size="17" font-weight="600" fill="#7A45D6">portfolio tables</text><text x="1066" y="398" text-anchor="middle" font-size="13.5" fill="#8A6BFB">RLS-scoped</text>
-      <rect x="954" y="436" width="224" height="82" rx="13" fill="#FDF1F8" stroke="#EEC0DE"/><text x="1066" y="470" text-anchor="middle" font-size="17" font-weight="600" fill="#C43E8E">doc_chunks</text><text x="1066" y="492" text-anchor="middle" font-size="13.5" fill="#B673A0">vector(768) · HNSW</text>
+      <rect x="932" y="168" width="268" height="388" rx="18" fill="#FBFAFF" stroke="#E3DBF9" stroke-width="1.5"/>
+      <text x="1066" y="206" text-anchor="middle" font-size="22" font-weight="700" fill="#241B38">PostgreSQL 16</text>
+      <text x="1066" y="228" text-anchor="middle" font-size="15" fill="#6B6580">+ pgvector</text>
+      <rect x="954" y="248" width="224" height="82" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="1066" y="282" text-anchor="middle" font-size="17" font-weight="600" fill="#241B38">fact tables</text><text x="1066" y="304" text-anchor="middle" font-size="13.5" fill="#6B6580">shared · read-all</text>
+      <rect x="954" y="342" width="224" height="82" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="1066" y="376" text-anchor="middle" font-size="17" font-weight="600" fill="#241B38">portfolio tables</text><text x="1066" y="398" text-anchor="middle" font-size="13.5" fill="#6B6580">RLS-scoped</text>
+      <rect x="954" y="436" width="224" height="82" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="1066" y="470" text-anchor="middle" font-size="17" font-weight="600" fill="#241B38">doc_chunks</text><text x="1066" y="492" text-anchor="middle" font-size="13.5" fill="#6B6580">vector(768) · HNSW</text>
 
       <!-- arrows -->
       <line x1="322" y1="376" x2="390" y2="376" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#arv)"/><text x="356" y="364" text-anchor="middle" font-size="14" fill="#8B48FF">REST</text>
       <line x1="862" y1="352" x2="930" y2="352" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#arv)"/><text x="896" y="340" text-anchor="middle" font-size="14" fill="#8B48FF">SQL·RLS</text>
-      <line x1="731" y1="112" x2="1000" y2="166" stroke="#12897B" stroke-width="2" marker-end="url(#art)"/>
+      <line x1="1035" y1="120" x2="1063" y2="166" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#arv)"/>
     </svg>
   </div>
 </div>
@@ -235,12 +237,10 @@
   <svg class="watermark" aria-hidden="true"><use href="#etops-v"/></svg>
   <div class="slidenum">04 / 05</div>
   <div class="dhead">
-    <div class="kicker" style="margin:0;">03 · Grounded AI</div>
-    <h2>Copilot <span class="v">agent</span></h2>
-    <div class="tail">the model writes queries, never numbers</div>
+    <h2>Agent architecture</h2>
   </div>
   <div class="diagram-full">
-    <svg viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="LangGraph agent flow">
+    <svg viewBox="0 0 1280 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="LangGraph agent flow">
       <defs>
         <marker id="g" markerWidth="10" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L10,4.5 L0,9 z" fill="#8B7FA8"/></marker>
         <marker id="gv" markerWidth="10" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L10,4.5 L0,9 z" fill="#8B48FF"/></marker>
@@ -248,50 +248,47 @@
         <marker id="gt" markerWidth="10" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L10,4.5 L0,9 z" fill="#12897B"/></marker>
       </defs>
 
-      <rect x="150" y="34" width="1050" height="430" rx="20" fill="#FBFAFF" stroke="#D9CEF3" stroke-dasharray="8 6"/>
+      <rect x="150" y="34" width="1050" height="468" rx="20" fill="#FBFAFF" stroke="#D9CEF3" stroke-dasharray="8 6"/>
       <text x="176" y="64" font-size="16" font-weight="700" fill="#8B48FF" letter-spacing="1">LangGraph</text>
 
       <!-- question -->
       <circle cx="46" cy="196" r="20" fill="#241B38"/><text x="46" y="238" text-anchor="middle" font-size="15" fill="#6B6580">question</text>
 
       <!-- scope_guard -->
-      <rect x="180" y="152" width="176" height="90" rx="14" fill="#E4F6F1" stroke="#A7DFD4"/><text x="268" y="192" text-anchor="middle" font-size="21" font-weight="700" fill="#12897B">scope_guard</text><text x="268" y="216" text-anchor="middle" font-size="14" fill="#4E9E93">classify + leak guard</text>
+      <rect x="180" y="152" width="176" height="90" rx="14" fill="#fff" stroke="#D9CEF3"/><text x="268" y="192" text-anchor="middle" font-size="21" font-weight="700" fill="#241B38">scope_guard</text><text x="268" y="216" text-anchor="middle" font-size="14" fill="#6B6580">classify + leak guard</text>
 
       <!-- refusal -->
-      <rect x="180" y="330" width="176" height="74" rx="14" fill="#FDECEC" stroke="#F0B9B9"/><text x="268" y="365" text-anchor="middle" font-size="17" font-weight="600" fill="#C0392B">canned refusal</text><text x="268" y="387" text-anchor="middle" font-size="13.5" fill="#C77">≈0 tokens → END</text>
+      <rect x="180" y="330" width="176" height="74" rx="14" fill="#fff" stroke="#F0B9B9"/><text x="268" y="373" text-anchor="middle" font-size="18" font-weight="600" fill="#C0392B">Push back to user</text>
 
       <!-- planner -->
-      <rect x="392" y="152" width="176" height="90" rx="14" fill="#F1ECFD" stroke="#CDBAF6"/><text x="480" y="192" text-anchor="middle" font-size="21" font-weight="700" fill="#7A45D6">planner</text><text x="480" y="216" text-anchor="middle" font-size="14" fill="#8A6BFB">LLM · picks tools</text>
+      <rect x="392" y="152" width="176" height="90" rx="14" fill="#fff" stroke="#D9CEF3"/><text x="480" y="192" text-anchor="middle" font-size="21" font-weight="700" fill="#241B38">planner</text><text x="480" y="216" text-anchor="middle" font-size="14" fill="#6B6580">LLM · picks tools</text>
 
       <!-- executor -->
-      <rect x="604" y="86" width="378" height="378" rx="16" fill="#F7F4FF" stroke="#E3DBF9"/><text x="624" y="116" font-size="15" font-weight="700" fill="#6B6580">EXECUTOR · deterministic</text>
-      <rect x="624" y="130" width="338" height="86" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="642" y="166" font-size="20" font-weight="700" fill="#3A1D7A">run_sql</text><text x="642" y="192" font-size="14" fill="#6B6580">read-only · RLS-scoped · sanitized</text>
-      <rect x="624" y="228" width="338" height="86" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="642" y="264" font-size="20" font-weight="700" fill="#3A1D7A">get_projection</text><text x="642" y="290" font-size="14" fill="#6B6580">analytics service — no LLM</text>
-      <rect x="624" y="326" width="338" height="110" rx="13" fill="#FDF1F8" stroke="#EEC0DE"/><text x="642" y="362" font-size="20" font-weight="700" fill="#C43E8E">rag_search</text><text x="642" y="390" font-size="14" fill="#B673A0">embed → hybrid (vector ∪ full-text)</text><text x="642" y="412" font-size="14" fill="#B673A0">→ cross-encoder rerank → citations</text>
+      <rect x="604" y="86" width="378" height="378" rx="16" fill="#F7F4FF" stroke="#E3DBF9"/>
+      <rect x="624" y="180" width="338" height="86" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="642" y="216" font-size="20" font-weight="700" fill="#241B38">run_sql</text><text x="642" y="242" font-size="14" fill="#6B6580">read-only · RLS-scoped · sanitized</text>
+      <rect x="624" y="300" width="338" height="110" rx="13" fill="#fff" stroke="#D9CEF3"/><text x="642" y="336" font-size="20" font-weight="700" fill="#241B38">rag_search</text><text x="642" y="364" font-size="14" fill="#6B6580">semantic + keyword search</text><text x="642" y="386" font-size="14" fill="#6B6580">→ rerank</text>
 
       <!-- synthesiser -->
-      <rect x="1018" y="120" width="164" height="90" rx="14" fill="#F1ECFD" stroke="#CDBAF6"/><text x="1100" y="160" text-anchor="middle" font-size="20" font-weight="700" fill="#7A45D6">synthesiser</text><text x="1100" y="184" text-anchor="middle" font-size="13.5" fill="#8A6BFB">LLM · [n] cites</text>
+      <rect x="1018" y="120" width="164" height="90" rx="14" fill="#fff" stroke="#D9CEF3"/><text x="1100" y="160" text-anchor="middle" font-size="20" font-weight="700" fill="#241B38">synthesiser</text><text x="1100" y="184" text-anchor="middle" font-size="13.5" fill="#6B6580">Draft answer</text>
 
       <!-- validator -->
-      <rect x="1018" y="250" width="164" height="104" rx="14" fill="#E4F6F1" stroke="#A7DFD4"/><text x="1100" y="290" text-anchor="middle" font-size="19" font-weight="700" fill="#12897B">grounding</text><text x="1100" y="312" text-anchor="middle" font-size="19" font-weight="700" fill="#12897B">validator</text><text x="1100" y="334" text-anchor="middle" font-size="13" fill="#4E9E93">every number checked</text>
+      <rect x="1018" y="250" width="164" height="104" rx="14" fill="#fff" stroke="#D9CEF3"/><text x="1100" y="296" text-anchor="middle" font-size="17" font-weight="700" fill="#241B38">Deterministic</text><text x="1100" y="320" text-anchor="middle" font-size="17" font-weight="700" fill="#241B38">Validator</text>
 
       <!-- answer -->
-      <circle cx="1140" cy="418" r="20" fill="#241B38"/><circle cx="1140" cy="418" r="12" fill="none" stroke="#FBFAFF" stroke-width="2.5"/><text x="1120" y="418" text-anchor="end" font-size="15" fill="#6B6580">answer</text>
+      <circle cx="1240" cy="302" r="20" fill="#241B38"/><circle cx="1240" cy="302" r="12" fill="none" stroke="#FBFAFF" stroke-width="2.5"/><text x="1240" y="344" text-anchor="middle" font-size="15" fill="#6B6580">answer</text>
 
       <!-- edges -->
       <line x1="66" y1="196" x2="178" y2="196" stroke="#8B7FA8" stroke-width="2" marker-end="url(#g)"/>
-      <line x1="356" y1="196" x2="390" y2="196" stroke="#12897B" stroke-width="2.4" marker-end="url(#gt)"/><text x="373" y="184" text-anchor="middle" font-size="13" fill="#12897B">in scope</text>
+      <line x1="356" y1="196" x2="390" y2="196" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/><text x="374" y="138" text-anchor="middle" font-size="13" fill="#8B48FF">in scope</text>
       <line x1="268" y1="242" x2="268" y2="328" stroke="#E5484D" stroke-width="2.2" marker-end="url(#gr)"/><text x="308" y="290" text-anchor="middle" font-size="13" fill="#E5484D">off-topic</text>
-      <line x1="568" y1="196" x2="602" y2="200" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/>
-      <line x1="982" y1="176" x2="1016" y2="168" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/><text x="1000" y="150" text-anchor="middle" font-size="12.5" fill="#8B48FF">rows·chunks</text>
-      <line x1="1100" y1="210" x2="1100" y2="248" stroke="#8B7FA8" stroke-width="2" marker-end="url(#g)"/><text x="1126" y="234" text-anchor="middle" font-size="13" fill="#8B7FA8">draft</text>
-      <line x1="1118" y1="336" x2="1132" y2="392" stroke="#12897B" stroke-width="2.4" marker-end="url(#gt)"/><text x="1158" y="372" text-anchor="middle" font-size="13" fill="#12897B">verified</text>
+      <line x1="568" y1="197" x2="620" y2="223" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/>
+      <line x1="568" y1="197" x2="620" y2="348" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/>
+      <line x1="982" y1="176" x2="1016" y2="168" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/><text x="1100" y="106" text-anchor="middle" font-size="12.5" fill="#8B48FF">rows·chunks</text>
+      <line x1="1100" y1="210" x2="1100" y2="248" stroke="#8B7FA8" stroke-width="2" marker-end="url(#g)"/>
+      <line x1="1184" y1="302" x2="1216" y2="302" stroke="#8B48FF" stroke-width="2.4" marker-end="url(#gv)"/><text x="1240" y="276" text-anchor="middle" font-size="13" fill="#8B48FF">verified</text>
       <path d="M 1100 356 L 1100 476 Q 1100 486 1090 486 L 490 486 Q 480 486 480 476 L 480 250" stroke="#E5484D" stroke-width="2.2" fill="none" stroke-dasharray="8 5" marker-end="url(#gr)"/>
       <text x="742" y="478" text-anchor="middle" font-size="14.5" fill="#E5484D">unverified figure → re-plan ×3 → rag fallback → honest refusal</text>
 
-      <!-- footer note -->
-      <text x="600" y="524" text-anchor="middle" font-size="16" font-weight="600" fill="#241B38">LLM in exactly 3 nodes · retrieval and every number are deterministic</text>
-      <text x="600" y="548" text-anchor="middle" font-size="14.5" fill="#6B6580">a prompt-injected query still cannot leave the portfolio</text>
     </svg>
   </div>
 </div>
@@ -300,34 +297,29 @@
 <div class="slide">
   <svg class="watermark" aria-hidden="true"><use href="#etops-v"/></svg>
   <div class="slidenum">05 / 05</div>
-  <div class="kicker">04 · Status &amp; Next</div>
-  <h2 class="section">Status &amp; my <span class="v">first 90 days</span></h2>
+  <h2 class="section">Summary</h2>
   <div class="pillars">
-    <div class="pillar" style="border-top-color:var(--teal);">
-      <h3 style="color:var(--teal);">Demo</h3>
+    <div class="pillar">
+      <h3 style="color:var(--violet);">Demo</h3>
       <ul>
-        <li>LLM usage in an app</li>
-        <li>Python · FastAPI backend</li>
-        <li>React · TypeScript frontend</li>
-      </ul>
-    </div>
-    <div class="pillar" style="border-top-color:var(--amber);">
-      <h3 style="color:var(--amber);">To improve</h3>
-      <ul>
-        <li>Evaluation<small>grounding accuracy</small></li>
-        <li>Speed<small>latency · cost</small></li>
+        <li>Full-stack working prototype with embedded LLM in chat and portfolio creation</li>
       </ul>
     </div>
     <div class="pillar">
-      <h3>First 3 months at Etops</h3>
+      <h3 style="color:var(--violet);">To improve</h3>
       <ul>
-        <li>Understand the data team's stack</li>
-        <li>Find critical parts to improve</li>
-        <li>Take ownership of them</li>
+        <li>RAG evaluation and better answers</li>
+      </ul>
+    </div>
+    <div class="pillar">
+      <h3 style="color:var(--violet);">First 3 months</h3>
+      <ul>
+        <li>Study Etops tech stack — Streamlit, Airflow, Elasticsearch</li>
+        <li>Understand team dynamics, find a part with no owner yet</li>
+        <li>Take ownership from idea to production</li>
       </ul>
     </div>
   </div>
-  <div class="footmark">Thank you · Etops · Senior Data Engineer</div>
 </div>
 
 </body>
