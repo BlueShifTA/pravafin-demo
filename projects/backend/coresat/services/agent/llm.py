@@ -234,8 +234,12 @@ ticker. Each ETF ticker MUST appear in the funds evidence (SELECT ... FROM funds
 pick the closest broad-growth ETF from the funds evidence (e.g. VOO, QQQ). Put
 every ETF in the `cores` list as {ticker, weight}; when the user names more than
 one ETF (e.g. SCHG and SCHD), include ALL of them, never just the first. The
-`satellites` list holds individual stocks from instruments. Weights must sum to
-1 (all cores + all satellites).
+`satellites` list holds individual stocks from instruments. When the user asks
+for a specific number of stocks (e.g. "3 high-growth stocks"), the `satellites`
+list MUST contain exactly that many entries — and every stock you name in `text`
+MUST appear in `satellites` with the same ticker: the written summary and the
+array can never disagree or drop a holding. Weights must sum to 1 (all cores +
+all satellites).
 
 Actions (set the `action` field):
 - "chat": the user asked a question, or truly nothing can be proposed — reply
