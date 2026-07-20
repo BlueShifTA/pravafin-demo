@@ -160,7 +160,9 @@ class DraftService:
         # The model often names a ticker that is not exactly in the DB — a
         # dropped exchange suffix (CSPX for CSPX.L) or a stock as the core (HD).
         # Resolve each core against funds and each satellite against instruments
-        # (exact, else the same base plus an exchange suffix, else company name).
+        # of any type (exact, else the same base plus an exchange suffix, else
+        # company name) — a satellite may be a stock OR an ETF (thematic pick),
+        # both are tradable instruments the create path accepts.
         # Unresolved satellites are excluded with a note; if EVERY core fails to
         # resolve to a real fund — or resolving leaves no satellites the user
         # asked for — don't propose a broken draft (a lone core rescaled to 100%
@@ -193,7 +195,7 @@ class DraftService:
                 resolved = (
                     await conn.execute(
                         text(
-                            "SELECT ticker FROM instruments WHERE type = 'stock' AND "
+                            "SELECT ticker FROM instruments WHERE "
                             "(upper(ticker) = upper(:t) OR upper(ticker) LIKE upper(:t) || '.%' "
                             "OR upper(name) = upper(:t) OR upper(name) LIKE upper(:t) || '%') "
                             "ORDER BY (upper(ticker) = upper(:t)) DESC, "
@@ -208,7 +210,7 @@ class DraftService:
                     dropped.append(position.ticker)
         if draft.satellites and not satellites:
             return None, (
-                "could not match any requested holdings to tradable stocks: "
+                "could not match any requested holdings to tradable instruments: "
                 + ", ".join(dropped)
                 + " — please use exact tickers"
             )

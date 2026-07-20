@@ -63,7 +63,11 @@ async def _seed() -> None:
     conn = await _connect_or_skip()
     await csdb.apply_schema(ADMIN_DSN)
     await conn.execute("TRUNCATE positions, sleeves, portfolios RESTART IDENTITY CASCADE")
-    for ticker, name, kind in (("NVDA", "NVIDIA", "stock"), ("UNH", "UnitedHealth", "stock")):
+    for ticker, name, kind in (
+        ("NVDA", "NVIDIA", "stock"),
+        ("UNH", "UnitedHealth", "stock"),
+        ("CIBR", "First Trust NASDAQ Cybersecurity ETF", "etf"),
+    ):
         await conn.execute(
             "INSERT INTO instruments (ticker, name, type) VALUES ($1, $2, $3) "
             "ON CONFLICT (ticker) DO NOTHING",
@@ -278,6 +282,32 @@ def test_propose_resolves_a_satellite_by_company_name() -> None:
         assert emitted["action"] == "propose"
         assert isinstance(emitted["draft"], dict)
         assert {s["ticker"] for s in emitted["draft"]["satellites"]} == {"NVDA", "UNH"}
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_propose_resolves_an_etf_satellite() -> None:
+    # A satellite sleeve may legitimately hold an ETF (thematic/defensive pick),
+    # and a portfolio can be all-ETF. An ETF is a real tradable instrument, so it
+    # must resolve and be proposed — not rejected as "not a tradable stock".
+    draft = csd.PortfolioDraft(
+        name="ETF Satellites",
+        initial_capital=10000,
+        monthly_contribution=0,
+        cores=[{"ticker": "IWDA.AS", "weight": 0.6}],
+        satellites=[{"ticker": "CIBR", "weight": 0.4}],
+    )
+    answer = csd.Answer(text="Here.", action="propose", draft=draft)
+    client = _client(ScriptedAgentLLM(in_scope=True, answers=[answer]))
+    try:
+        response = client.post(
+            "/api/portfolio-draft/chat", json={"message": "defensive etf satellite"}
+        )
+        assert response.status_code == 200, response.text
+        emitted = next(p for n, p in _events(response.text) if n == "answer")
+        assert emitted["action"] == "propose"
+        assert isinstance(emitted["draft"], dict)
+        assert {s["ticker"] for s in emitted["draft"]["satellites"]} == {"CIBR"}
     finally:
         client.__exit__(None, None, None)
 
