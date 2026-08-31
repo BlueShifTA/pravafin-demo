@@ -12,7 +12,7 @@ Verdict: "too much agent theater, too little data-model and operational rigor."
 7. Scope re-tiered: MVP vs stretch, realistic estimate raised.
 
 ## Prepare verbal answers (don't build)
-- Why pgvector not Elasticsearch (their stack): demo simplicity, one engine; at Etops hybrid retrieval could live in ES — know both.
+- Why pgvector not Elasticsearch (their stack): demo simplicity, one engine; in production hybrid retrieval could live in ES — know both.
 - Oracle absence: golden source in Oracle → CDC/read-replica pattern, same contracts.
 - Corporate actions/benchmark methodology: yfinance auto_adjust=True = split/dividend-adjusted closes; state definition of "performance vs benchmark" (total return, same currency).
 - users/authn: single-user demo deliberately; RLS keyed on portfolio_id set by trusted middleware; prod = users + portfolio_memberships.

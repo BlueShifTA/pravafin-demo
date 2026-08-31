@@ -1,4 +1,4 @@
-# CoreSat — Personal Portfolio Manager (Etops interview demo)
+# CoreSat — Personal Portfolio Manager (interview demo)
 
 Core-Satellite portfolio management with grounded AI copilot.
 Demonstrates: data integration/ingestion, analysis, LangGraph agentic AI, hallucination control, multi-portfolio isolation.
