@@ -75,3 +75,10 @@ yarn.lock
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Doc artifacts (images, exported HTML/PDF, diagrams) — app sources under projects/ stay tracked
+*.png
+*.html
+*.pdf
+*.svg
+!projects/**
